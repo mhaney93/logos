@@ -153,3 +153,66 @@ export async function listArguments() {
     },
   });
 }
+
+// Depth = length of the longest chain of citations feeding into an argument's
+// conclusion (i.e. how many arguments deep its premises were built up from).
+async function computeDeepestArgumentId(): Promise<string | null> {
+  const [allArguments, citations] = await Promise.all([
+    prisma.argument.findMany({ select: { id: true } }),
+    prisma.citation.findMany({
+      select: { citingArgumentId: true, citedArgumentId: true },
+    }),
+  ]);
+  if (allArguments.length === 0) return null;
+
+  const citedBy = new Map<string, string[]>();
+  for (const { citingArgumentId, citedArgumentId } of citations) {
+    const list = citedBy.get(citingArgumentId) ?? [];
+    list.push(citedArgumentId);
+    citedBy.set(citingArgumentId, list);
+  }
+
+  const depthCache = new Map<string, number>();
+  function depthOf(id: string, stack: Set<string>): number {
+    if (depthCache.has(id)) return depthCache.get(id)!;
+    if (stack.has(id)) return 0; // guard against cycles
+    stack.add(id);
+    const citedIds = citedBy.get(id) ?? [];
+    const depth =
+      citedIds.length === 0
+        ? 0
+        : 1 + Math.max(...citedIds.map((citedId) => depthOf(citedId, stack)));
+    stack.delete(id);
+    depthCache.set(id, depth);
+    return depth;
+  }
+
+  let deepestId = allArguments[0].id;
+  let deepestDepth = -1;
+  for (const { id } of allArguments) {
+    const depth = depthOf(id, new Set());
+    if (depth > deepestDepth) {
+      deepestDepth = depth;
+      deepestId = id;
+    }
+  }
+  return deepestId;
+}
+
+export async function getDeepestArgument() {
+  const deepestId = await computeDeepestArgumentId();
+  if (!deepestId) return null;
+
+  return prisma.argument.findUnique({
+    where: { id: deepestId },
+    include: {
+      author: { select: { username: true } },
+      conclusion: true,
+      premises: {
+        orderBy: { position: "asc" },
+        include: { clause: true },
+      },
+      _count: { select: { citationsReceived: true } },
+    },
+  });
+}
