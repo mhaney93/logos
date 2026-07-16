@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { createArgument } from "@/lib/actions/arguments";
+import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
 import { getArgumentForm, type ArgumentFormId } from "@/lib/argumentForms";
 import { FormSelector } from "./FormSelector";
 import { PremiseConclusionPicker } from "./PremiseConclusionPicker";
@@ -53,7 +54,7 @@ export function ArgumentForm({
       onSubmit={(e) => {
         e.preventDefault();
         if (!canSubmit || !argumentForm || !conclusionId) return;
-        const password = prompt("Password:");
+        const password = getActionPassword();
         if (password === null) return;
         startTransition(async () => {
           try {
@@ -62,6 +63,9 @@ export function ArgumentForm({
             setPremiseIds(new Set());
             setConclusionId(null);
           } catch (err) {
+            if (err instanceof Error && err.message === "Incorrect password") {
+              clearActionPassword();
+            }
             alert(err instanceof Error ? err.message : "Failed to build argument");
           }
         });

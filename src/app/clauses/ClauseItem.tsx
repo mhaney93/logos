@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { deleteClause, updateClause } from "@/lib/actions/clauses";
+import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
 
 export function ClauseItem({
   id,
@@ -23,13 +24,16 @@ export function ClauseItem({
           className="flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            const password = prompt("Password:");
+            const password = getActionPassword();
             if (password === null) return;
             startTransition(async () => {
               try {
                 await updateClause(id, value, password);
                 setIsEditing(false);
               } catch (err) {
+                if (err instanceof Error && err.message === "Incorrect password") {
+                  clearActionPassword();
+                }
                 alert(err instanceof Error ? err.message : "Failed to save");
               }
             });
@@ -80,12 +84,15 @@ export function ClauseItem({
         <button
           onClick={() => {
             if (!confirm("Delete this clause?")) return;
-            const password = prompt("Password:");
+            const password = getActionPassword();
             if (password === null) return;
             startTransition(async () => {
               try {
                 await deleteClause(id, password);
               } catch (err) {
+                if (err instanceof Error && err.message === "Incorrect password") {
+                  clearActionPassword();
+                }
                 alert(err instanceof Error ? err.message : "Failed to delete");
               }
             });

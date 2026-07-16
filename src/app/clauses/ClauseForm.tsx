@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { createClause, findSimilarClauses } from "@/lib/actions/clauses";
+import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
 
 export function ClauseForm() {
   const [text, setText] = useState("");
@@ -30,7 +31,7 @@ export function ClauseForm() {
           e.preventDefault();
           const trimmed = text.trim();
           if (!trimmed) return;
-          const password = prompt("Password:");
+          const password = getActionPassword();
           if (password === null) return;
           startTransition(async () => {
             try {
@@ -38,6 +39,9 @@ export function ClauseForm() {
               setText("");
               setSuggestions([]);
             } catch (err) {
+              if (err instanceof Error && err.message === "Incorrect password") {
+                clearActionPassword();
+              }
               alert(err instanceof Error ? err.message : "Failed to publish");
             }
           });

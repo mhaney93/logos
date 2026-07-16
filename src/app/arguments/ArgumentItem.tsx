@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { deleteArgument, updateArgument } from "@/lib/actions/arguments";
+import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
 import { getArgumentForm, type ArgumentFormId } from "@/lib/argumentForms";
 import { FormSelector } from "./FormSelector";
 import { PremiseConclusionPicker } from "./PremiseConclusionPicker";
@@ -76,13 +77,16 @@ export function ArgumentItem({
           onSubmit={(e) => {
             e.preventDefault();
             if (!canSubmit || !conclusionId) return;
-            const password = prompt("Password:");
+            const password = getActionPassword();
             if (password === null) return;
             startTransition(async () => {
               try {
                 await updateArgument(id, argumentForm, Array.from(premiseIds), conclusionId, password);
                 setIsEditing(false);
               } catch (err) {
+                if (err instanceof Error && err.message === "Incorrect password") {
+                  clearActionPassword();
+                }
                 alert(err instanceof Error ? err.message : "Failed to save");
               }
             });
@@ -145,12 +149,15 @@ export function ArgumentItem({
           <button
             onClick={() => {
               if (!confirm("Delete this argument?")) return;
-              const password = prompt("Password:");
+              const password = getActionPassword();
               if (password === null) return;
               startTransition(async () => {
                 try {
                   await deleteArgument(id, password);
                 } catch (err) {
+                  if (err instanceof Error && err.message === "Incorrect password") {
+                    clearActionPassword();
+                  }
                   alert(err instanceof Error ? err.message : "Failed to delete");
                 }
               });
