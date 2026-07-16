@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateUser } from "@/lib/auth";
+import { assertActionPassword, getOrCreateUser } from "@/lib/auth";
 import { getArgumentForm, type ArgumentFormId } from "@/lib/argumentForms";
 
 function assertValidShape(
@@ -32,7 +32,9 @@ export async function createArgument(
   form: ArgumentFormId,
   premiseClauseIds: string[],
   conclusionClauseId: string,
+  password: string,
 ) {
+  assertActionPassword(password);
   assertValidShape(form, premiseClauseIds, conclusionClauseId);
 
   const user = await getOrCreateUser();
@@ -78,7 +80,9 @@ export async function updateArgument(
   form: ArgumentFormId,
   premiseClauseIds: string[],
   conclusionClauseId: string,
+  password: string,
 ) {
+  assertActionPassword(password);
   assertValidShape(form, premiseClauseIds, conclusionClauseId);
 
   const existing = await prisma.argument.findUnique({ where: { id: argumentId } });
@@ -120,7 +124,9 @@ export async function updateArgument(
   revalidatePath("/clauses");
 }
 
-export async function deleteArgument(argumentId: string) {
+export async function deleteArgument(argumentId: string, password: string) {
+  assertActionPassword(password);
+
   const existing = await prisma.argument.findUnique({ where: { id: argumentId } });
   if (!existing) throw new Error("Argument not found");
 

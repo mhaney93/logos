@@ -53,11 +53,17 @@ export function ArgumentForm({
       onSubmit={(e) => {
         e.preventDefault();
         if (!canSubmit || !argumentForm || !conclusionId) return;
+        const password = prompt("Password:");
+        if (password === null) return;
         startTransition(async () => {
-          await createArgument(argumentForm, Array.from(premiseIds), conclusionId);
-          setArgumentForm(null);
-          setPremiseIds(new Set());
-          setConclusionId(null);
+          try {
+            await createArgument(argumentForm, Array.from(premiseIds), conclusionId, password);
+            setArgumentForm(null);
+            setPremiseIds(new Set());
+            setConclusionId(null);
+          } catch (err) {
+            alert(err instanceof Error ? err.message : "Failed to build argument");
+          }
         });
       }}
       className="flex flex-col gap-4 rounded-lg border border-black/[.08] p-4 dark:border-white/[.145]"

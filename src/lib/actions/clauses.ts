@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateUser } from "@/lib/auth";
+import { assertActionPassword, getOrCreateUser } from "@/lib/auth";
 import { embedText, toVectorLiteral } from "@/lib/embeddings";
 
 // Embeddings power similarity search but aren't load-bearing for publishing —
@@ -19,7 +19,9 @@ async function storeEmbedding(clauseId: string, text: string) {
   }
 }
 
-export async function createClause(text: string) {
+export async function createClause(text: string, password: string) {
+  assertActionPassword(password);
+
   const trimmed = text.trim();
   if (!trimmed) throw new Error("Clause text is required");
 
@@ -36,7 +38,9 @@ export async function createClause(text: string) {
   return clause;
 }
 
-export async function updateClause(id: string, text: string) {
+export async function updateClause(id: string, text: string, password: string) {
+  assertActionPassword(password);
+
   const trimmed = text.trim();
   if (!trimmed) throw new Error("Clause text is required");
 
@@ -55,7 +59,9 @@ export async function updateClause(id: string, text: string) {
   return updated;
 }
 
-export async function deleteClause(id: string) {
+export async function deleteClause(id: string, password: string) {
+  assertActionPassword(password);
+
   const clause = await prisma.clause.findUnique({
     where: { id },
     include: {

@@ -76,9 +76,15 @@ export function ArgumentItem({
           onSubmit={(e) => {
             e.preventDefault();
             if (!canSubmit || !conclusionId) return;
+            const password = prompt("Password:");
+            if (password === null) return;
             startTransition(async () => {
-              await updateArgument(id, argumentForm, Array.from(premiseIds), conclusionId);
-              setIsEditing(false);
+              try {
+                await updateArgument(id, argumentForm, Array.from(premiseIds), conclusionId, password);
+                setIsEditing(false);
+              } catch (err) {
+                alert(err instanceof Error ? err.message : "Failed to save");
+              }
             });
           }}
           className="flex flex-col gap-4"
@@ -138,11 +144,16 @@ export function ArgumentItem({
           </button>
           <button
             onClick={() => {
-              if (confirm("Delete this argument?")) {
-                startTransition(async () => {
-                  await deleteArgument(id);
-                });
-              }
+              if (!confirm("Delete this argument?")) return;
+              const password = prompt("Password:");
+              if (password === null) return;
+              startTransition(async () => {
+                try {
+                  await deleteArgument(id, password);
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : "Failed to delete");
+                }
+              });
             }}
             disabled={isPending}
             className="text-red-600 hover:text-red-800 disabled:opacity-40 dark:text-red-400 dark:hover:text-red-300"

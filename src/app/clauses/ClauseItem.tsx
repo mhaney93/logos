@@ -23,9 +23,15 @@ export function ClauseItem({
           className="flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
+            const password = prompt("Password:");
+            if (password === null) return;
             startTransition(async () => {
-              await updateClause(id, value);
-              setIsEditing(false);
+              try {
+                await updateClause(id, value, password);
+                setIsEditing(false);
+              } catch (err) {
+                alert(err instanceof Error ? err.message : "Failed to save");
+              }
             });
           }}
         >
@@ -74,9 +80,11 @@ export function ClauseItem({
         <button
           onClick={() => {
             if (!confirm("Delete this clause?")) return;
+            const password = prompt("Password:");
+            if (password === null) return;
             startTransition(async () => {
               try {
-                await deleteClause(id);
+                await deleteClause(id, password);
               } catch (err) {
                 alert(err instanceof Error ? err.message : "Failed to delete");
               }

@@ -30,10 +30,16 @@ export function ClauseForm() {
           e.preventDefault();
           const trimmed = text.trim();
           if (!trimmed) return;
+          const password = prompt("Password:");
+          if (password === null) return;
           startTransition(async () => {
-            await createClause(trimmed);
-            setText("");
-            setSuggestions([]);
+            try {
+              await createClause(trimmed, password);
+              setText("");
+              setSuggestions([]);
+            } catch (err) {
+              alert(err instanceof Error ? err.message : "Failed to publish");
+            }
           });
         }}
         className="flex gap-2"

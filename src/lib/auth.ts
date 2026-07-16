@@ -10,3 +10,10 @@ export async function getOrCreateUser() {
     create: { clerkId: SOLO_USER_CLERK_ID, username: "me" },
   });
 }
+
+// Gates create/edit/delete of clauses and arguments since there's no login.
+export function assertActionPassword(password: string) {
+  if (password !== process.env.ACTION_PASSWORD) {
+    throw new Error("Incorrect password");
+  }
+}
