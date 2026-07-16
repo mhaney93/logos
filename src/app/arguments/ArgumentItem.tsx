@@ -13,7 +13,6 @@ export function ArgumentItem({
   conclusion,
   authorUsername,
   citationCount,
-  isOwnArgument,
   allClauses,
 }: {
   id: string;
@@ -22,7 +21,6 @@ export function ArgumentItem({
   conclusion: { id: string; text: string };
   authorUsername: string;
   citationCount: number;
-  isOwnArgument: boolean;
   allClauses: { id: string; text: string }[];
 }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -131,29 +129,27 @@ export function ArgumentItem({
           {authorUsername} · cited {citationCount} time
           {citationCount === 1 ? "" : "s"}
         </p>
-        {isOwnArgument && (
-          <div className="flex gap-3 text-xs font-medium">
-            <button
-              onClick={() => setIsEditing(true)}
-              className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => {
-                if (confirm("Delete this argument?")) {
-                  startTransition(async () => {
-                    await deleteArgument(id);
-                  });
-                }
-              }}
-              disabled={isPending}
-              className="text-red-600 hover:text-red-800 disabled:opacity-40 dark:text-red-400 dark:hover:text-red-300"
-            >
-              Delete
-            </button>
-          </div>
-        )}
+        <div className="flex gap-3 text-xs font-medium">
+          <button
+            onClick={() => setIsEditing(true)}
+            className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => {
+              if (confirm("Delete this argument?")) {
+                startTransition(async () => {
+                  await deleteArgument(id);
+                });
+              }
+            }}
+            disabled={isPending}
+            className="text-red-600 hover:text-red-800 disabled:opacity-40 dark:text-red-400 dark:hover:text-red-300"
+          >
+            Delete
+          </button>
+        </div>
       </div>
     </li>
   );

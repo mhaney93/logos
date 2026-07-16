@@ -1,17 +1,12 @@
 import { listArguments } from "@/lib/actions/arguments";
 import { listClauses } from "@/lib/actions/clauses";
-import { getOrCreateUser } from "@/lib/auth";
 import { ArgumentForm } from "./ArgumentForm";
 import { ArgumentItem } from "./ArgumentItem";
 
 export const dynamic = "force-dynamic";
 
 export default async function ArgumentsPage() {
-  const [args, clauses, user] = await Promise.all([
-    listArguments(),
-    listClauses(),
-    getOrCreateUser(),
-  ]);
+  const [args, clauses] = await Promise.all([listArguments(), listClauses()]);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-8 py-12">
@@ -38,7 +33,6 @@ export default async function ArgumentsPage() {
             conclusion={argument.conclusion}
             authorUsername={argument.author.username}
             citationCount={argument._count.citationsReceived}
-            isOwnArgument={argument.authorId === user?.id}
             allClauses={clauses}
           />
         ))}

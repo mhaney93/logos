@@ -40,12 +40,8 @@ export async function updateClause(id: string, text: string) {
   const trimmed = text.trim();
   if (!trimmed) throw new Error("Clause text is required");
 
-  const user = await getOrCreateUser();
-  if (!user) throw new Error("Not signed in");
-
   const clause = await prisma.clause.findUnique({ where: { id } });
   if (!clause) throw new Error("Clause not found");
-  if (clause.authorId !== user.id) throw new Error("Not your clause");
 
   const updated = await prisma.clause.update({
     where: { id },
@@ -60,9 +56,6 @@ export async function updateClause(id: string, text: string) {
 }
 
 export async function deleteClause(id: string) {
-  const user = await getOrCreateUser();
-  if (!user) throw new Error("Not signed in");
-
   const clause = await prisma.clause.findUnique({
     where: { id },
     include: {
@@ -71,7 +64,6 @@ export async function deleteClause(id: string) {
     },
   });
   if (!clause) throw new Error("Clause not found");
-  if (clause.authorId !== user.id) throw new Error("Not your clause");
   if (clause._count.premiseOf > 0 || clause.concludedBy) {
     throw new Error("Can't delete a clause that's used in an argument");
   }

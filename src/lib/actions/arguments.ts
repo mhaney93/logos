@@ -36,7 +36,6 @@ export async function createArgument(
   assertValidShape(form, premiseClauseIds, conclusionClauseId);
 
   const user = await getOrCreateUser();
-  if (!user) throw new Error("Not signed in");
 
   // Premises that are themselves the conclusion of an earlier argument —
   // using them here cites that argument.
@@ -82,12 +81,8 @@ export async function updateArgument(
 ) {
   assertValidShape(form, premiseClauseIds, conclusionClauseId);
 
-  const user = await getOrCreateUser();
-  if (!user) throw new Error("Not signed in");
-
   const existing = await prisma.argument.findUnique({ where: { id: argumentId } });
   if (!existing) throw new Error("Argument not found");
-  if (existing.authorId !== user.id) throw new Error("Not your argument");
 
   const citedArguments = await prisma.argument.findMany({
     where: { conclusionId: { in: premiseClauseIds }, id: { not: argumentId } },
@@ -126,12 +121,8 @@ export async function updateArgument(
 }
 
 export async function deleteArgument(argumentId: string) {
-  const user = await getOrCreateUser();
-  if (!user) throw new Error("Not signed in");
-
   const existing = await prisma.argument.findUnique({ where: { id: argumentId } });
   if (!existing) throw new Error("Argument not found");
-  if (existing.authorId !== user.id) throw new Error("Not your argument");
 
   await prisma.argument.delete({ where: { id: argumentId } });
 

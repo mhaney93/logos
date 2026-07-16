@@ -7,12 +7,10 @@ export function ClauseItem({
   id,
   text,
   authorUsername,
-  isOwnClause,
 }: {
   id: string;
   text: string;
   authorUsername: string;
-  isOwnClause: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(text);
@@ -66,32 +64,30 @@ export function ClauseItem({
         <p>{text}</p>
         <p className="mt-1 text-xs text-zinc-500">{authorUsername}</p>
       </div>
-      {isOwnClause && (
-        <div className="flex shrink-0 gap-3 text-xs font-medium">
-          <button
-            onClick={() => setIsEditing(true)}
-            className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => {
-              if (!confirm("Delete this clause?")) return;
-              startTransition(async () => {
-                try {
-                  await deleteClause(id);
-                } catch (err) {
-                  alert(err instanceof Error ? err.message : "Failed to delete");
-                }
-              });
-            }}
-            disabled={isPending}
-            className="text-red-600 hover:text-red-800 disabled:opacity-40 dark:text-red-400 dark:hover:text-red-300"
-          >
-            Delete
-          </button>
-        </div>
-      )}
+      <div className="flex shrink-0 gap-3 text-xs font-medium">
+        <button
+          onClick={() => setIsEditing(true)}
+          className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+        >
+          Edit
+        </button>
+        <button
+          onClick={() => {
+            if (!confirm("Delete this clause?")) return;
+            startTransition(async () => {
+              try {
+                await deleteClause(id);
+              } catch (err) {
+                alert(err instanceof Error ? err.message : "Failed to delete");
+              }
+            });
+          }}
+          disabled={isPending}
+          className="text-red-600 hover:text-red-800 disabled:opacity-40 dark:text-red-400 dark:hover:text-red-300"
+        >
+          Delete
+        </button>
+      </div>
     </li>
   );
 }
