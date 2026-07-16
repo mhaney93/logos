@@ -59,6 +59,23 @@ export async function updateClause(id: string, text: string, password: string) {
   return updated;
 }
 
+export async function updateClauseSupport(id: string, support: string, password: string) {
+  assertActionPassword(password);
+
+  const trimmed = support.trim();
+
+  const clause = await prisma.clause.findUnique({ where: { id } });
+  if (!clause) throw new Error("Clause not found");
+
+  const updated = await prisma.clause.update({
+    where: { id },
+    data: { support: trimmed || null },
+  });
+
+  revalidatePath("/clauses");
+  return updated;
+}
+
 export async function deleteClause(id: string, password: string) {
   assertActionPassword(password);
 

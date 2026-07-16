@@ -25,6 +25,7 @@ model User {
 model Clause {
   id        String                       @id @default(cuid())
   text      String
+  support   String?
   embedding Unsupported("vector(1024)")?
   authorId  String
   author    User                         @relation(fields: [authorId], references: [id])

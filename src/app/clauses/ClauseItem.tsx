@@ -8,10 +8,12 @@ export function ClauseItem({
   id,
   text,
   authorUsername,
+  onSelect,
 }: {
   id: string;
   text: string;
   authorUsername: string;
+  onSelect: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(text);
@@ -69,20 +71,27 @@ export function ClauseItem({
   }
 
   return (
-    <li className="flex items-start justify-between gap-3 rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.145]">
+    <li
+      onClick={onSelect}
+      className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-black/[.08] px-4 py-3 hover:border-black/[.16] dark:border-white/[.145] dark:hover:border-white/[.25]"
+    >
       <div>
         <p>{text}</p>
         <p className="mt-1 text-xs text-zinc-500">{authorUsername}</p>
       </div>
       <div className="flex shrink-0 gap-3 text-xs font-medium">
         <button
-          onClick={() => setIsEditing(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsEditing(true);
+          }}
           className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
         >
           Edit
         </button>
         <button
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             if (!confirm("Delete this clause?")) return;
             const password = getActionPassword();
             if (password === null) return;

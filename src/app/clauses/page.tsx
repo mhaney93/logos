@@ -1,6 +1,6 @@
 import { listClauses } from "@/lib/actions/clauses";
 import { ClauseForm } from "./ClauseForm";
-import { ClauseItem } from "./ClauseItem";
+import { ClauseList } from "./ClauseList";
 
 export const dynamic = "force-dynamic";
 
@@ -13,19 +13,7 @@ export default async function ClausesPage() {
 
       <ClauseForm />
 
-      <ul className="flex flex-col gap-3">
-        {clauses.map((clause) => (
-          <ClauseItem
-            key={clause.id}
-            id={clause.id}
-            text={clause.text}
-            authorUsername={clause.author.username}
-          />
-        ))}
-        {clauses.length === 0 && (
-          <p className="text-sm text-zinc-500">No clauses yet.</p>
-        )}
-      </ul>
+      <ClauseList clauses={clauses} />
     </div>
   );
 }
