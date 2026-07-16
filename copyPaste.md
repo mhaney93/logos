@@ -1,0 +1,1 @@
+https://vercel.com/oauth/authorize?response_type=code&client_id=cl_WbdtcToDrMR4ZHvXLGAmbfoYCsQjMeS8&code_challenge=DNpoFADgH-EoyjoZDrEKi-MSCZdcdpKoyA-ApovnvhA&code_challenge_method=S256&redirect_uri=http%3A%2F%2Flocalhost%3A49107%2Fcallback&state=NF9OuNUV3DZOxEOlAEr0OAxOszCqD5We7vRAwnIUnXI&scope=openid+offline_access&prompt=consent&resource=https%3A%2F%2Fmcp.vercel.com%2F

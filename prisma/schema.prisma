@@ -1,0 +1,125 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  username  String   @unique
+  createdAt DateTime @default(now())
+
+  clauses    Clause[]
+  arguments  Argument[]
+  votes      Vote[]
+
+  @@map("users")
+}
+
+model Clause {
+  id        String                       @id @default(cuid())
+  text      String
+  embedding Unsupported("vector(1024)")?
+  authorId  String
+  author    User                         @relation(fields: [authorId], references: [id])
+  createdAt DateTime                     @default(now())
+
+  // The argument that concluded this clause, if any (vs. an asserted base premise)
+  concludedBy Argument? @relation("ArgumentConclusion")
+
+  premiseOf ArgumentPremise[]
+  votes     Vote[]
+
+  @@index([authorId])
+  @@map("clauses")
+}
+
+enum ArgumentForm {
+  MODUS_PONENS
+  MODUS_TOLLENS
+  HYPOTHETICAL_SYLLOGISM
+  DISJUNCTIVE_SYLLOGISM
+  CATEGORICAL_SYLLOGISM
+  SIMPLE_INFERENCE
+  CUMULATIVE_CASE
+}
+
+model Argument {
+  id        String       @id @default(cuid())
+  form      ArgumentForm
+  authorId  String
+  author    User         @relation(fields: [authorId], references: [id])
+  createdAt DateTime     @default(now())
+
+  conclusionId String @unique
+  conclusion   Clause @relation("ArgumentConclusion", fields: [conclusionId], references: [id])
+
+  premises  ArgumentPremise[]
+  votes     Vote[]
+
+  // citations of OTHER arguments made by using their conclusion as a premise here
+  citationsMade     Citation[] @relation("CitingArgument")
+  // citations received when this argument's conclusion is used as a premise elsewhere
+  citationsReceived Citation[] @relation("CitedArgument")
+
+  @@index([authorId])
+  @@map("arguments")
+}
+
+// Join table: which clauses serve as premises for which argument, in what order
+model ArgumentPremise {
+  argumentId String
+  argument   Argument @relation(fields: [argumentId], references: [id], onDelete: Cascade)
+  clauseId   String
+  clause     Clause   @relation(fields: [clauseId], references: [id])
+  position   Int
+
+  @@id([argumentId, clauseId])
+  @@index([clauseId])
+  @@map("argument_premises")
+}
+
+// Denormalized record created whenever an argument's conclusion is reused as a
+// premise elsewhere. Powers the reputation system without recomputing joins.
+model Citation {
+  id String @id @default(cuid())
+
+  citingArgumentId String
+  citingArgument   Argument @relation("CitingArgument", fields: [citingArgumentId], references: [id], onDelete: Cascade)
+
+  citedArgumentId String
+  citedArgument   Argument @relation("CitedArgument", fields: [citedArgumentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([citingArgumentId, citedArgumentId])
+  @@index([citedArgumentId])
+  @@map("citations")
+}
+
+model Vote {
+  id     String @id @default(cuid())
+  value  Int // -1 or 1
+  weight Int // voter's citation count at time of vote
+
+  voterId String
+  voter   User   @relation(fields: [voterId], references: [id])
+
+  clauseId String?
+  clause   Clause? @relation(fields: [clauseId], references: [id], onDelete: Cascade)
+
+  argumentId String?
+  argument   Argument? @relation(fields: [argumentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([voterId, clauseId])
+  @@unique([voterId, argumentId])
+  @@map("votes")
+}
