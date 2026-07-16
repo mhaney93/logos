@@ -12,10 +12,6 @@ export default async function Home() {
         <h1 className="text-3xl font-semibold tracking-tight">
           Conclusions
         </h1>
-        <p className="text-zinc-600 dark:text-zinc-400">
-          What the community has argued its way to, built from reusable
-          clauses and cited reasoning.
-        </p>
       </div>
 
       <ul className="flex flex-col gap-4">
