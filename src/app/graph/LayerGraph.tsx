@@ -8,8 +8,7 @@ type Edge = { from: string; to: string };
 
 const RING_GAP = 70;
 const INNER_RADIUS = 50;
-const SIZE = 900;
-const CENTER = SIZE / 2;
+const OUTER_PADDING = 40; // room for the outermost ring's label
 
 export function LayerGraph({
   layers,
@@ -23,6 +22,10 @@ export function LayerGraph({
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const sortedLayers = useMemo(() => [...layers].sort((a, b) => a.depth - b.depth), [layers]);
+
+  const outerRadius = INNER_RADIUS + Math.max(0, sortedLayers.length - 1) * RING_GAP;
+  const size = (outerRadius + OUTER_PADDING) * 2;
+  const center = size / 2;
 
   const radiusByLayerId = useMemo(() => {
     const map = new Map<string, number>();
@@ -45,13 +48,13 @@ export function LayerGraph({
       list.forEach((clause, i) => {
         const angle = (2 * Math.PI * i) / list.length - Math.PI / 2;
         map.set(clause.id, {
-          x: CENTER + radius * Math.cos(angle),
-          y: CENTER + radius * Math.sin(angle),
+          x: center + radius * Math.cos(angle),
+          y: center + radius * Math.sin(angle),
         });
       });
     }
     return map;
-  }, [clauses, radiusByLayerId]);
+  }, [clauses, radiusByLayerId, center]);
 
   const hovered = clauses.find((c) => c.id === hoveredId) ?? null;
 
@@ -62,14 +65,14 @@ export function LayerGraph({
   return (
     <div className="flex flex-col gap-3">
       <svg
-        viewBox={`0 0 ${SIZE} ${SIZE}`}
+        viewBox={`0 0 ${size} ${size}`}
         className="w-full rounded-lg border border-black/[.08] dark:border-white/[.145]"
       >
         {sortedLayers.map((layer, i) => (
           <g key={layer.id}>
             <circle
-              cx={CENTER}
-              cy={CENTER}
+              cx={center}
+              cy={center}
               r={INNER_RADIUS + i * RING_GAP}
               fill="none"
               stroke="currentColor"
@@ -77,8 +80,8 @@ export function LayerGraph({
               className="text-zinc-500"
             />
             <text
-              x={CENTER}
-              y={CENTER - (INNER_RADIUS + i * RING_GAP) - 4}
+              x={center}
+              y={center - (INNER_RADIUS + i * RING_GAP) - 4}
               textAnchor="middle"
               className="fill-zinc-500 text-[11px]"
             >
