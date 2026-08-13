@@ -22,6 +22,23 @@ export async function createLayer(name: string, depth: number, password: string)
   return layer;
 }
 
+export async function updateLayerName(id: string, name: string, password: string) {
+  assertActionPassword(password);
+
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Layer name is required");
+
+  const layer = await prisma.layer.findUnique({ where: { id } });
+  if (!layer) throw new Error("Layer not found");
+
+  const updated = await prisma.layer.update({ where: { id }, data: { name: trimmed } });
+
+  revalidatePath("/layers");
+  revalidatePath("/clauses");
+  revalidatePath("/graph");
+  return updated;
+}
+
 export async function deleteLayer(id: string, password: string) {
   assertActionPassword(password);
 
