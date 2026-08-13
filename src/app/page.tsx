@@ -1,10 +1,10 @@
-import { getDeepestArgument } from "@/lib/actions/arguments";
+import { getMostLayerBridgingArgument } from "@/lib/actions/arguments";
 import { ConclusionCard } from "./ConclusionCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const argument = await getDeepestArgument();
+  const argument = await getMostLayerBridgingArgument();
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-8 py-12">

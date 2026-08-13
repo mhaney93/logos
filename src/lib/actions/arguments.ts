@@ -176,57 +176,73 @@ export async function listArguments() {
   });
 }
 
-// Depth = length of the longest chain of citations feeding into an argument's
-// conclusion (i.e. how many arguments deep its premises were built up from).
-async function computeDeepestArgumentId(): Promise<string | null> {
-  const [allArguments, citations] = await Promise.all([
-    prisma.argument.findMany({ select: { id: true } }),
-    prisma.citation.findMany({
-      select: { citingArgumentId: true, citedArgumentId: true },
-    }),
+// The set of layers an argument "bridges" is the layer of its conclusion plus
+// the layers of its premises — and, transitively, the layers bridged by
+// whichever earlier arguments concluded those premises (a premise that's
+// itself a conclusion pulls in everything that fed into it).
+async function computeMostLayerBridgingArgumentId(): Promise<string | null> {
+  const [allArguments, premiseRows, clauses] = await Promise.all([
+    prisma.argument.findMany({ select: { id: true, conclusionId: true } }),
+    prisma.argumentPremise.findMany({ select: { argumentId: true, clauseId: true } }),
+    prisma.clause.findMany({ select: { id: true, layerId: true } }),
   ]);
   if (allArguments.length === 0) return null;
 
-  const citedBy = new Map<string, string[]>();
-  for (const { citingArgumentId, citedArgumentId } of citations) {
-    const list = citedBy.get(citingArgumentId) ?? [];
-    list.push(citedArgumentId);
-    citedBy.set(citingArgumentId, list);
+  const conclusionByArgumentId = new Map(allArguments.map((a) => [a.id, a.conclusionId]));
+  const argumentByConclusionClauseId = new Map(allArguments.map((a) => [a.conclusionId, a.id]));
+  const layerIdByClauseId = new Map(clauses.map((c) => [c.id, c.layerId]));
+
+  const premisesByArgument = new Map<string, string[]>();
+  for (const { argumentId, clauseId } of premiseRows) {
+    const list = premisesByArgument.get(argumentId) ?? [];
+    list.push(clauseId);
+    premisesByArgument.set(argumentId, list);
   }
 
-  const depthCache = new Map<string, number>();
-  function depthOf(id: string, stack: Set<string>): number {
-    if (depthCache.has(id)) return depthCache.get(id)!;
-    if (stack.has(id)) return 0; // guard against cycles
-    stack.add(id);
-    const citedIds = citedBy.get(id) ?? [];
-    const depth =
-      citedIds.length === 0
-        ? 0
-        : 1 + Math.max(...citedIds.map((citedId) => depthOf(citedId, stack)));
-    stack.delete(id);
-    depthCache.set(id, depth);
-    return depth;
+  const layersCache = new Map<string, Set<string>>();
+  function layersOf(argumentId: string, stack: Set<string>): Set<string> {
+    if (layersCache.has(argumentId)) return layersCache.get(argumentId)!;
+    if (stack.has(argumentId)) return new Set(); // guard against cycles
+    stack.add(argumentId);
+
+    const layers = new Set<string>();
+    const conclusionClauseId = conclusionByArgumentId.get(argumentId);
+    const conclusionLayerId = conclusionClauseId && layerIdByClauseId.get(conclusionClauseId);
+    if (conclusionLayerId) layers.add(conclusionLayerId);
+
+    for (const premiseClauseId of premisesByArgument.get(argumentId) ?? []) {
+      const premiseLayerId = layerIdByClauseId.get(premiseClauseId);
+      if (premiseLayerId) layers.add(premiseLayerId);
+
+      const subArgumentId = argumentByConclusionClauseId.get(premiseClauseId);
+      if (subArgumentId) {
+        for (const layerId of layersOf(subArgumentId, stack)) layers.add(layerId);
+      }
+    }
+
+    stack.delete(argumentId);
+    layersCache.set(argumentId, layers);
+    return layers;
   }
 
-  let deepestId = allArguments[0].id;
-  let deepestDepth = -1;
+  let bestId = allArguments[0].id;
+  let bestCount = -1;
   for (const { id } of allArguments) {
-    const depth = depthOf(id, new Set());
-    if (depth > deepestDepth) {
-      deepestDepth = depth;
-      deepestId = id;
+    const count = layersOf(id, new Set()).size;
+    if (count > bestCount) {
+      bestCount = count;
+      bestId = id;
     }
   }
-  return deepestId;
+  return bestId;
 }
 
-export async function getDeepestArgument() {
-  const deepestId = await computeDeepestArgumentId();
-  if (!deepestId) return null;
+export async function getMostLayerBridgingArgument() {
+  const bestId = await computeMostLayerBridgingArgumentId();
+  if (!bestId) return null;
 
   return prisma.argument.findUnique({
-    where: { id: deepestId },
+    where: { id: bestId },
     include: {
       author: { select: { username: true } },
       conclusion: true,
