@@ -23,7 +23,7 @@ model User {
 }
 
 // A layer of analysis (e.g. physics, biology, psychology, sociology).
-// Depth 0 is the innermost/most fundamental layer; explanatory power flows
+// Depth 1 is the innermost/most fundamental layer; explanatory power flows
 // from lower depths outward, never the reverse.
 model Layer {
   id        String   @id @default(cuid())

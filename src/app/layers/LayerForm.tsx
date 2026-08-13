@@ -7,7 +7,7 @@ import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
 export function LayerForm({ existingDepths }: { existingDepths: number[] }) {
   const [name, setName] = useState("");
   const [depth, setDepth] = useState(
-    existingDepths.length > 0 ? String(Math.max(...existingDepths) + 1) : "0",
+    existingDepths.length > 0 ? String(Math.max(...existingDepths) + 1) : "1",
   );
   const [isPending, startTransition] = useTransition();
 

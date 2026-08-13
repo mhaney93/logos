@@ -12,7 +12,7 @@ export default async function LayersPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Layers</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Layers of analysis, ordered from most fundamental (depth 0) outward. An
+          Layers of analysis, ordered from most fundamental (depth 1) outward. An
           argument&apos;s premises must belong to a layer at least as fundamental as its
           conclusion&apos;s layer.
         </p>
