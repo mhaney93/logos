@@ -19,43 +19,67 @@ async function storeEmbedding(clauseId: string, text: string) {
   }
 }
 
-export async function createClause(text: string, password: string) {
+export async function createClause(text: string, layerId: string, password: string) {
   assertActionPassword(password);
 
   const trimmed = text.trim();
   if (!trimmed) throw new Error("Clause text is required");
+  if (!layerId) throw new Error("A layer is required");
 
   const user = await getOrCreateUser();
   if (!user) throw new Error("Not signed in");
 
   const clause = await prisma.clause.create({
-    data: { text: trimmed, authorId: user.id },
+    data: { text: trimmed, authorId: user.id, layerId },
   });
 
   await storeEmbedding(clause.id, trimmed);
 
   revalidatePath("/clauses");
+  revalidatePath("/layers");
   return clause;
 }
 
-export async function updateClause(id: string, text: string, password: string) {
+export async function updateClause(id: string, text: string, layerId: string, password: string) {
   assertActionPassword(password);
 
   const trimmed = text.trim();
   if (!trimmed) throw new Error("Clause text is required");
+  if (!layerId) throw new Error("A layer is required");
 
   const clause = await prisma.clause.findUnique({ where: { id } });
   if (!clause) throw new Error("Clause not found");
 
+  if (clause.layerId !== layerId) {
+    // Changing a clause's layer can invalidate arguments built on it —
+    // any argument concluding this clause must still keep its premises
+    // at least as fundamental as the new layer.
+    const argument = await prisma.argument.findUnique({
+      where: { conclusionId: id },
+      include: { premises: { include: { clause: { include: { layer: true } } } } },
+    });
+    if (argument) {
+      const newLayer = await prisma.layer.findUnique({ where: { id: layerId } });
+      if (!newLayer) throw new Error("Layer not found");
+      const violator = argument.premises.find((p) => p.clause.layer.depth > newLayer.depth);
+      if (violator) {
+        throw new Error(
+          `Can't move to a layer more fundamental than premise "${violator.clause.text}"`,
+        );
+      }
+    }
+  }
+
   const updated = await prisma.clause.update({
     where: { id },
-    data: { text: trimmed },
+    data: { text: trimmed, layerId },
   });
 
   await storeEmbedding(id, trimmed);
 
   revalidatePath("/clauses");
   revalidatePath("/arguments");
+  revalidatePath("/layers");
   return updated;
 }
 
@@ -121,6 +145,6 @@ export async function findSimilarClauses(text: string) {
 export async function listClauses() {
   return prisma.clause.findMany({
     orderBy: { createdAt: "desc" },
-    include: { author: { select: { username: true } } },
+    include: { author: { select: { username: true } }, layer: true },
   });
 }

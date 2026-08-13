@@ -22,6 +22,20 @@ model User {
   @@map("users")
 }
 
+// A layer of analysis (e.g. physics, biology, psychology, sociology).
+// Depth 0 is the innermost/most fundamental layer; explanatory power flows
+// from lower depths outward, never the reverse.
+model Layer {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  depth     Int      @unique
+  createdAt DateTime @default(now())
+
+  clauses Clause[]
+
+  @@map("layers")
+}
+
 model Clause {
   id        String                       @id @default(cuid())
   text      String
@@ -29,6 +43,8 @@ model Clause {
   embedding Unsupported("vector(1024)")?
   authorId  String
   author    User                         @relation(fields: [authorId], references: [id])
+  layerId   String
+  layer     Layer                        @relation(fields: [layerId], references: [id])
   createdAt DateTime                     @default(now())
 
   // The argument that concluded this clause, if any (vs. an asserted base premise)
@@ -38,6 +54,7 @@ model Clause {
   votes     Vote[]
 
   @@index([authorId])
+  @@index([layerId])
   @@map("clauses")
 }
 

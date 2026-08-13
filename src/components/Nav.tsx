@@ -13,6 +13,12 @@ export function Nav() {
         <Link href="/arguments" className="text-sm font-medium">
           Arguments
         </Link>
+        <Link href="/layers" className="text-sm font-medium">
+          Layers
+        </Link>
+        <Link href="/graph" className="text-sm font-medium">
+          Graph
+        </Link>
       </div>
     </header>
   );

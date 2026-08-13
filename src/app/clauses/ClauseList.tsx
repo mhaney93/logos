@@ -6,13 +6,16 @@ import { ClauseSupportSidebar } from "./ClauseSupportSidebar";
 
 export function ClauseList({
   clauses,
+  layers,
 }: {
   clauses: {
     id: string;
     text: string;
     support: string | null;
     author: { username: string };
+    layer: { id: string; name: string; depth: number };
   }[];
+  layers: { id: string; name: string; depth: number }[];
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = clauses.find((c) => c.id === selectedId) ?? null;
@@ -26,6 +29,9 @@ export function ClauseList({
             id={clause.id}
             text={clause.text}
             authorUsername={clause.author.username}
+            layerId={clause.layer.id}
+            layerName={clause.layer.name}
+            layers={layers}
             onSelect={() => setSelectedId(clause.id)}
           />
         ))}

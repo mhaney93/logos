@@ -8,15 +8,22 @@ export function ClauseItem({
   id,
   text,
   authorUsername,
+  layerId,
+  layerName,
+  layers,
   onSelect,
 }: {
   id: string;
   text: string;
   authorUsername: string;
+  layerId: string;
+  layerName: string;
+  layers: { id: string; name: string; depth: number }[];
   onSelect: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(text);
+  const [selectedLayerId, setSelectedLayerId] = useState(layerId);
   const [isPending, startTransition] = useTransition();
 
   if (isEditing) {
@@ -30,7 +37,7 @@ export function ClauseItem({
             if (password === null) return;
             startTransition(async () => {
               try {
-                await updateClause(id, value, password);
+                await updateClause(id, value, selectedLayerId, password);
                 setIsEditing(false);
               } catch (err) {
                 if (err instanceof Error && err.message === "Incorrect password") {
@@ -48,6 +55,18 @@ export function ClauseItem({
             autoFocus
             required
           />
+          <select
+            value={selectedLayerId}
+            onChange={(e) => setSelectedLayerId(e.target.value)}
+            className="rounded-full border border-black/[.08] px-3 py-1.5 text-sm dark:border-white/[.145] dark:bg-black"
+            required
+          >
+            {layers.map((layer) => (
+              <option key={layer.id} value={layer.id}>
+                {layer.name}
+              </option>
+            ))}
+          </select>
           <button
             type="submit"
             disabled={isPending}
@@ -59,6 +78,7 @@ export function ClauseItem({
             type="button"
             onClick={() => {
               setValue(text);
+              setSelectedLayerId(layerId);
               setIsEditing(false);
             }}
             className="rounded-full px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/[.04] dark:hover:bg-white/[.08]"
@@ -77,7 +97,9 @@ export function ClauseItem({
     >
       <div>
         <p>{text}</p>
-        <p className="mt-1 text-xs text-zinc-500">{authorUsername}</p>
+        <p className="mt-1 text-xs text-zinc-500">
+          {authorUsername} · {layerName}
+        </p>
       </div>
       <div className="flex shrink-0 gap-3 text-xs font-medium">
         <button

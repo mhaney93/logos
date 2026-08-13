@@ -4,8 +4,13 @@ import { useEffect, useState, useTransition } from "react";
 import { createClause, findSimilarClauses } from "@/lib/actions/clauses";
 import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
 
-export function ClauseForm() {
+export function ClauseForm({
+  layers,
+}: {
+  layers: { id: string; name: string; depth: number }[];
+}) {
   const [text, setText] = useState("");
+  const [layerId, setLayerId] = useState(layers[0]?.id ?? "");
   const [suggestions, setSuggestions] = useState<{ id: string; text: string; distance: number }[]>([]);
   const [isPending, startTransition] = useTransition();
 
@@ -30,12 +35,12 @@ export function ClauseForm() {
         onSubmit={(e) => {
           e.preventDefault();
           const trimmed = text.trim();
-          if (!trimmed) return;
+          if (!trimmed || !layerId) return;
           const password = getActionPassword();
           if (password === null) return;
           startTransition(async () => {
             try {
-              await createClause(trimmed, password);
+              await createClause(trimmed, layerId, password);
               setText("");
               setSuggestions([]);
             } catch (err) {
@@ -55,6 +60,18 @@ export function ClauseForm() {
           className="flex-1 rounded-full border border-black/[.08] px-4 py-2 text-sm dark:border-white/[.145]"
           required
         />
+        <select
+          value={layerId}
+          onChange={(e) => setLayerId(e.target.value)}
+          className="rounded-full border border-black/[.08] px-3 py-2 text-sm dark:border-white/[.145] dark:bg-black"
+          required
+        >
+          {layers.map((layer) => (
+            <option key={layer.id} value={layer.id}>
+              {layer.name}
+            </option>
+          ))}
+        </select>
         <button
           type="submit"
           disabled={isPending}

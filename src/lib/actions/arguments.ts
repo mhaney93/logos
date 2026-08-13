@@ -28,6 +28,29 @@ function assertValidShape(
   }
 }
 
+// Explanatory power flows inward-out: a premise must belong to a layer at
+// least as fundamental (depth <= conclusion's depth) as what it supports.
+async function assertValidLayers(premiseClauseIds: string[], conclusionClauseId: string) {
+  const clauses = await prisma.clause.findMany({
+    where: { id: { in: [...premiseClauseIds, conclusionClauseId] } },
+    include: { layer: true },
+  });
+  const byId = new Map(clauses.map((c) => [c.id, c]));
+
+  const conclusion = byId.get(conclusionClauseId);
+  if (!conclusion) throw new Error("Conclusion clause not found");
+
+  for (const premiseId of premiseClauseIds) {
+    const premise = byId.get(premiseId);
+    if (!premise) throw new Error("Premise clause not found");
+    if (premise.layer.depth > conclusion.layer.depth) {
+      throw new Error(
+        `Premise "${premise.text}" (${premise.layer.name}) is less fundamental than conclusion "${conclusion.text}" (${conclusion.layer.name})`,
+      );
+    }
+  }
+}
+
 export async function createArgument(
   form: ArgumentFormId,
   premiseClauseIds: string[],
@@ -36,6 +59,7 @@ export async function createArgument(
 ) {
   assertActionPassword(password);
   assertValidShape(form, premiseClauseIds, conclusionClauseId);
+  await assertValidLayers(premiseClauseIds, conclusionClauseId);
 
   const user = await getOrCreateUser();
 
@@ -84,6 +108,7 @@ export async function updateArgument(
 ) {
   assertActionPassword(password);
   assertValidShape(form, premiseClauseIds, conclusionClauseId);
+  await assertValidLayers(premiseClauseIds, conclusionClauseId);
 
   const existing = await prisma.argument.findUnique({ where: { id: argumentId } });
   if (!existing) throw new Error("Argument not found");
