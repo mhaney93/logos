@@ -64,7 +64,7 @@ export function ClauseSupportSidebar({
 
         <div className="flex flex-1 flex-col gap-2">
           <label className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Why is this true?
+            Notes
           </label>
           <textarea
             value={value}
