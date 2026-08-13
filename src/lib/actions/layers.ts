@@ -35,7 +35,6 @@ export async function updateLayerName(id: string, name: string, password: string
 
   revalidatePath("/layers");
   revalidatePath("/clauses");
-  revalidatePath("/graph");
   return updated;
 }
 
