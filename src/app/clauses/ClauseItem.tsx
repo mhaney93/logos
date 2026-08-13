@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { deleteClause, updateClause } from "@/lib/actions/clauses";
 import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
+import { ConfirmDialog } from "@/app/components/ConfirmDialog";
 
 export function ClauseItem({
   id,
@@ -25,6 +26,23 @@ export function ClauseItem({
   const [value, setValue] = useState(text);
   const [selectedLayerId, setSelectedLayerId] = useState(layerId);
   const [isPending, startTransition] = useTransition();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  function runDelete() {
+    setConfirmingDelete(false);
+    const password = getActionPassword();
+    if (password === null) return;
+    startTransition(async () => {
+      try {
+        await deleteClause(id, password);
+      } catch (err) {
+        if (err instanceof Error && err.message === "Incorrect password") {
+          clearActionPassword();
+        }
+        alert(err instanceof Error ? err.message : "Failed to delete");
+      }
+    });
+  }
 
   if (isEditing) {
     return (
@@ -114,19 +132,7 @@ export function ClauseItem({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (!confirm("Delete this clause?")) return;
-            const password = getActionPassword();
-            if (password === null) return;
-            startTransition(async () => {
-              try {
-                await deleteClause(id, password);
-              } catch (err) {
-                if (err instanceof Error && err.message === "Incorrect password") {
-                  clearActionPassword();
-                }
-                alert(err instanceof Error ? err.message : "Failed to delete");
-              }
-            });
+            setConfirmingDelete(true);
           }}
           disabled={isPending}
           className="text-red-600 hover:text-red-800 disabled:opacity-40 dark:text-red-400 dark:hover:text-red-300"
@@ -134,6 +140,12 @@ export function ClauseItem({
           Delete
         </button>
       </div>
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete this clause?"
+        onConfirm={runDelete}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </li>
   );
 }

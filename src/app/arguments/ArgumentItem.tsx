@@ -6,6 +6,7 @@ import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
 import { getArgumentForm, type ArgumentFormId } from "@/lib/argumentForms";
 import { FormSelector } from "./FormSelector";
 import { PremiseConclusionPicker } from "./PremiseConclusionPicker";
+import { ConfirmDialog } from "@/app/components/ConfirmDialog";
 
 export function ArgumentItem({
   id,
@@ -31,6 +32,23 @@ export function ArgumentItem({
   );
   const [conclusionId, setConclusionId] = useState<string | null>(conclusion.id);
   const [isPending, startTransition] = useTransition();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  function runDelete() {
+    setConfirmingDelete(false);
+    const password = getActionPassword();
+    if (password === null) return;
+    startTransition(async () => {
+      try {
+        await deleteArgument(id, password);
+      } catch (err) {
+        if (err instanceof Error && err.message === "Incorrect password") {
+          clearActionPassword();
+        }
+        alert(err instanceof Error ? err.message : "Failed to delete");
+      }
+    });
+  }
 
   function selectForm(id: ArgumentFormId) {
     setArgumentForm(id);
@@ -147,21 +165,7 @@ export function ArgumentItem({
             Edit
           </button>
           <button
-            onClick={() => {
-              if (!confirm("Delete this argument?")) return;
-              const password = getActionPassword();
-              if (password === null) return;
-              startTransition(async () => {
-                try {
-                  await deleteArgument(id, password);
-                } catch (err) {
-                  if (err instanceof Error && err.message === "Incorrect password") {
-                    clearActionPassword();
-                  }
-                  alert(err instanceof Error ? err.message : "Failed to delete");
-                }
-              });
-            }}
+            onClick={() => setConfirmingDelete(true)}
             disabled={isPending}
             className="text-red-600 hover:text-red-800 disabled:opacity-40 dark:text-red-400 dark:hover:text-red-300"
           >
@@ -169,6 +173,12 @@ export function ArgumentItem({
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete this argument?"
+        onConfirm={runDelete}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </li>
   );
 }

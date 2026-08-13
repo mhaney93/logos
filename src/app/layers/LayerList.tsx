@@ -3,11 +3,29 @@
 import { useState, useTransition } from "react";
 import { deleteLayer, updateLayerName } from "@/lib/actions/layers";
 import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
+import { ConfirmDialog } from "@/app/components/ConfirmDialog";
 
 function LayerRow({ id, name, depth }: { id: string; name: string; depth: number }) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(name);
   const [isPending, startTransition] = useTransition();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  function runDelete() {
+    setConfirmingDelete(false);
+    const password = getActionPassword();
+    if (password === null) return;
+    startTransition(async () => {
+      try {
+        await deleteLayer(id, password);
+      } catch (err) {
+        if (err instanceof Error && err.message === "Incorrect password") {
+          clearActionPassword();
+        }
+        alert(err instanceof Error ? err.message : "Failed to delete");
+      }
+    });
+  }
 
   if (isEditing) {
     return (
@@ -79,27 +97,19 @@ function LayerRow({ id, name, depth }: { id: string; name: string; depth: number
           Edit
         </button>
         <button
-          onClick={() => {
-            if (!confirm(`Delete layer "${name}"?`)) return;
-            const password = getActionPassword();
-            if (password === null) return;
-            startTransition(async () => {
-              try {
-                await deleteLayer(id, password);
-              } catch (err) {
-                if (err instanceof Error && err.message === "Incorrect password") {
-                  clearActionPassword();
-                }
-                alert(err instanceof Error ? err.message : "Failed to delete");
-              }
-            });
-          }}
+          onClick={() => setConfirmingDelete(true)}
           disabled={isPending}
           className="text-red-600 hover:text-red-800 disabled:opacity-40 dark:text-red-400 dark:hover:text-red-300"
         >
           Delete
         </button>
       </div>
+      <ConfirmDialog
+        open={confirmingDelete}
+        title={`Delete layer "${name}"?`}
+        onConfirm={runDelete}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </li>
   );
 }
