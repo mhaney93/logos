@@ -11,7 +11,10 @@ export function ClauseItem({
   authorUsername,
   layerId,
   layerName,
+  categoryId,
+  categoryName,
   layers,
+  categories,
   onSelect,
 }: {
   id: string;
@@ -19,12 +22,16 @@ export function ClauseItem({
   authorUsername: string;
   layerId: string;
   layerName: string;
+  categoryId: string;
+  categoryName: string;
   layers: { id: string; name: string; depth: number }[];
+  categories: { id: string; name: string }[];
   onSelect: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(text);
   const [selectedLayerId, setSelectedLayerId] = useState(layerId);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(categoryId);
   const [isPending, startTransition] = useTransition();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -55,7 +62,7 @@ export function ClauseItem({
             if (password === null) return;
             startTransition(async () => {
               try {
-                await updateClause(id, value, selectedLayerId, password);
+                await updateClause(id, value, selectedLayerId, selectedCategoryId, password);
                 setIsEditing(false);
               } catch (err) {
                 if (err instanceof Error && err.message === "Incorrect password") {
@@ -85,6 +92,18 @@ export function ClauseItem({
               </option>
             ))}
           </select>
+          <select
+            value={selectedCategoryId}
+            onChange={(e) => setSelectedCategoryId(e.target.value)}
+            className="rounded-full border border-black/[.08] px-3 py-1.5 text-sm dark:border-white/[.145] dark:bg-black"
+            required
+          >
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
           <button
             type="submit"
             disabled={isPending}
@@ -97,6 +116,7 @@ export function ClauseItem({
             onClick={() => {
               setValue(text);
               setSelectedLayerId(layerId);
+              setSelectedCategoryId(categoryId);
               setIsEditing(false);
             }}
             className="rounded-full px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/[.04] dark:hover:bg-white/[.08]"
@@ -116,7 +136,7 @@ export function ClauseItem({
       <div>
         <p>{text}</p>
         <p className="mt-1 text-xs text-zinc-500">
-          {authorUsername} · {layerName}
+          {authorUsername} · {layerName} · {categoryName}
         </p>
       </div>
       <div className="flex shrink-0 gap-3 text-xs font-medium">

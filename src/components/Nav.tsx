@@ -16,6 +16,9 @@ export function Nav() {
         <Link href="/layers" className="text-sm font-medium">
           Layers
         </Link>
+        <Link href="/categories" className="text-sm font-medium">
+          Categories
+        </Link>
       </div>
     </header>
   );

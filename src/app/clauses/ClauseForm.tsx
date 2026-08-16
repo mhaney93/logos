@@ -6,11 +6,14 @@ import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
 
 export function ClauseForm({
   layers,
+  categories,
 }: {
   layers: { id: string; name: string; depth: number }[];
+  categories: { id: string; name: string }[];
 }) {
   const [text, setText] = useState("");
   const [layerId, setLayerId] = useState(layers[0]?.id ?? "");
+  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [suggestions, setSuggestions] = useState<{ id: string; text: string; distance: number }[]>([]);
   const [isPending, startTransition] = useTransition();
 
@@ -35,12 +38,12 @@ export function ClauseForm({
         onSubmit={(e) => {
           e.preventDefault();
           const trimmed = text.trim();
-          if (!trimmed || !layerId) return;
+          if (!trimmed || !layerId || !categoryId) return;
           const password = getActionPassword();
           if (password === null) return;
           startTransition(async () => {
             try {
-              await createClause(trimmed, layerId, password);
+              await createClause(trimmed, layerId, categoryId, password);
               setText("");
               setSuggestions([]);
             } catch (err) {
@@ -69,6 +72,18 @@ export function ClauseForm({
           {layers.map((layer) => (
             <option key={layer.id} value={layer.id}>
               {layer.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className="rounded-full border border-black/[.08] px-3 py-2 text-sm dark:border-white/[.145] dark:bg-black"
+          required
+        >
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
             </option>
           ))}
         </select>

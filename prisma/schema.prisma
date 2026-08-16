@@ -36,16 +36,30 @@ model Layer {
   @@map("layers")
 }
 
+// A topical grouping of clauses (e.g. metaphysics, metaethics), independent
+// of layer — two categories can sit at the same depth.
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  clauses Clause[]
+
+  @@map("categories")
+}
+
 model Clause {
-  id        String                       @id @default(cuid())
-  text      String
-  support   String?
-  embedding Unsupported("vector(1024)")?
-  authorId  String
-  author    User                         @relation(fields: [authorId], references: [id])
-  layerId   String
-  layer     Layer                        @relation(fields: [layerId], references: [id])
-  createdAt DateTime                     @default(now())
+  id         String                       @id @default(cuid())
+  text       String
+  support    String?
+  embedding  Unsupported("vector(1024)")?
+  authorId   String
+  author     User                         @relation(fields: [authorId], references: [id])
+  layerId    String
+  layer      Layer                        @relation(fields: [layerId], references: [id])
+  categoryId String
+  category   Category                     @relation(fields: [categoryId], references: [id])
+  createdAt  DateTime                     @default(now())
 
   // The argument that concluded this clause, if any (vs. an asserted base premise)
   concludedBy Argument? @relation("ArgumentConclusion")
@@ -55,6 +69,7 @@ model Clause {
 
   @@index([authorId])
   @@index([layerId])
+  @@index([categoryId])
   @@map("clauses")
 }
 

@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { listClauses } from "@/lib/actions/clauses";
 import { listLayers } from "@/lib/actions/layers";
+import { listCategories } from "@/lib/actions/categories";
 import { ClauseForm } from "./ClauseForm";
 import { ClauseList } from "./ClauseList";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClausesPage() {
-  const [clauses, layers] = await Promise.all([listClauses(), listLayers()]);
+  const [clauses, layers, categories] = await Promise.all([
+    listClauses(),
+    listLayers(),
+    listCategories(),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-8 py-12">
@@ -21,11 +26,19 @@ export default async function ClausesPage() {
           </Link>{" "}
           before publishing clauses.
         </p>
+      ) : categories.length === 0 ? (
+        <p className="text-sm text-zinc-500">
+          No categories yet —{" "}
+          <Link href="/categories" className="underline">
+            create a category
+          </Link>{" "}
+          before publishing clauses.
+        </p>
       ) : (
-        <ClauseForm layers={layers} />
+        <ClauseForm layers={layers} categories={categories} />
       )}
 
-      <ClauseList clauses={clauses} layers={layers} />
+      <ClauseList clauses={clauses} layers={layers} categories={categories} />
     </div>
   );
 }

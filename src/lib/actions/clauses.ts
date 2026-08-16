@@ -19,18 +19,24 @@ async function storeEmbedding(clauseId: string, text: string) {
   }
 }
 
-export async function createClause(text: string, layerId: string, password: string) {
+export async function createClause(
+  text: string,
+  layerId: string,
+  categoryId: string,
+  password: string,
+) {
   assertActionPassword(password);
 
   const trimmed = text.trim();
   if (!trimmed) throw new Error("Clause text is required");
   if (!layerId) throw new Error("A layer is required");
+  if (!categoryId) throw new Error("A category is required");
 
   const user = await getOrCreateUser();
   if (!user) throw new Error("Not signed in");
 
   const clause = await prisma.clause.create({
-    data: { text: trimmed, authorId: user.id, layerId },
+    data: { text: trimmed, authorId: user.id, layerId, categoryId },
   });
 
   await storeEmbedding(clause.id, trimmed);
@@ -40,12 +46,19 @@ export async function createClause(text: string, layerId: string, password: stri
   return clause;
 }
 
-export async function updateClause(id: string, text: string, layerId: string, password: string) {
+export async function updateClause(
+  id: string,
+  text: string,
+  layerId: string,
+  categoryId: string,
+  password: string,
+) {
   assertActionPassword(password);
 
   const trimmed = text.trim();
   if (!trimmed) throw new Error("Clause text is required");
   if (!layerId) throw new Error("A layer is required");
+  if (!categoryId) throw new Error("A category is required");
 
   const clause = await prisma.clause.findUnique({ where: { id } });
   if (!clause) throw new Error("Clause not found");
@@ -72,7 +85,7 @@ export async function updateClause(id: string, text: string, layerId: string, pa
 
   const updated = await prisma.clause.update({
     where: { id },
-    data: { text: trimmed, layerId },
+    data: { text: trimmed, layerId, categoryId },
   });
 
   await storeEmbedding(id, trimmed);
@@ -80,6 +93,7 @@ export async function updateClause(id: string, text: string, layerId: string, pa
   revalidatePath("/clauses");
   revalidatePath("/arguments");
   revalidatePath("/layers");
+  revalidatePath("/categories");
   return updated;
 }
 
@@ -145,6 +159,6 @@ export async function findSimilarClauses(text: string) {
 export async function listClauses() {
   return prisma.clause.findMany({
     orderBy: { createdAt: "desc" },
-    include: { author: { select: { username: true } }, layer: true },
+    include: { author: { select: { username: true } }, layer: true, category: true },
   });
 }
