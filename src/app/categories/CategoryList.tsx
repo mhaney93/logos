@@ -1,12 +1,26 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { deleteCategory, updateCategoryName } from "@/lib/actions/categories";
 import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
 import { ConfirmDialog } from "@/app/components/ConfirmDialog";
 import { flattenCategoryTree } from "@/lib/categoryTree";
 
-function CategoryRow({ id, name, depth }: { id: string; name: string; depth: number }) {
+function CategoryRow({
+  id,
+  name,
+  depth,
+  hasChildren,
+  isCollapsed,
+  onToggle,
+}: {
+  id: string;
+  name: string;
+  depth: number;
+  hasChildren: boolean;
+  isCollapsed: boolean;
+  onToggle: () => void;
+}) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(name);
   const [isPending, startTransition] = useTransition();
@@ -87,7 +101,20 @@ function CategoryRow({ id, name, depth }: { id: string; name: string; depth: num
       className="flex items-center justify-between gap-3 rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.145]"
       style={{ marginLeft: depth * 24 }}
     >
-      <span>{name}</span>
+      <div className="flex items-center gap-2">
+        {hasChildren ? (
+          <button
+            onClick={onToggle}
+            aria-label={isCollapsed ? "Expand" : "Collapse"}
+            className="flex h-4 w-4 shrink-0 items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+          >
+            {isCollapsed ? "▸" : "▾"}
+          </button>
+        ) : (
+          <span className="w-4 shrink-0" />
+        )}
+        <span>{name}</span>
+      </div>
       <div className="flex shrink-0 gap-3 text-xs font-medium">
         <button
           onClick={() => setIsEditing(true)}
@@ -118,12 +145,58 @@ export function CategoryList({
 }: {
   categories: { id: string; name: string; parentId: string | null }[];
 }) {
-  const tree = flattenCategoryTree(categories);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const tree = useMemo(() => flattenCategoryTree(categories), [categories]);
+
+  const childrenCount = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of categories) {
+      if (!c.parentId) continue;
+      counts.set(c.parentId, (counts.get(c.parentId) ?? 0) + 1);
+    }
+    return counts;
+  }, [categories]);
+
+  const visible = useMemo(() => {
+    const result: typeof tree = [];
+    let hiddenBelowDepth: number | null = null;
+    for (const category of tree) {
+      if (hiddenBelowDepth !== null) {
+        if (category.depth > hiddenBelowDepth) continue;
+        hiddenBelowDepth = null;
+      }
+      result.push(category);
+      if (collapsed.has(category.id)) {
+        hiddenBelowDepth = category.depth;
+      }
+    }
+    return result;
+  }, [tree, collapsed]);
+
+  function toggle(id: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
 
   return (
     <ul className="flex flex-col gap-2">
-      {tree.map((category) => (
-        <CategoryRow key={category.id} id={category.id} name={category.name} depth={category.depth} />
+      {visible.map((category) => (
+        <CategoryRow
+          key={category.id}
+          id={category.id}
+          name={category.name}
+          depth={category.depth}
+          hasChildren={(childrenCount.get(category.id) ?? 0) > 0}
+          isCollapsed={collapsed.has(category.id)}
+          onToggle={() => toggle(category.id)}
+        />
       ))}
       {tree.length === 0 && <p className="text-sm text-zinc-500">No categories yet.</p>}
     </ul>
