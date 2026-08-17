@@ -37,14 +37,22 @@ model Layer {
 }
 
 // A topical grouping of clauses (e.g. metaphysics, metaethics), independent
-// of layer — two categories can sit at the same depth.
+// of layer — two categories can sit at the same depth. Categories form a
+// tree (e.g. Philosophy > Metaphysics); filtering by an ancestor category
+// includes clauses tagged with any of its descendants.
 model Category {
   id        String   @id @default(cuid())
-  name      String   @unique
+  name      String
   createdAt DateTime @default(now())
+
+  parentId String?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
 
   clauses Clause[]
 
+  @@unique([parentId, name])
+  @@index([parentId])
   @@map("categories")
 }
 

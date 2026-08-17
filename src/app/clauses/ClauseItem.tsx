@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { deleteClause, updateClause } from "@/lib/actions/clauses";
 import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
 import { ConfirmDialog } from "@/app/components/ConfirmDialog";
+import { flattenCategoryTree } from "@/lib/categoryTree";
 
 export function ClauseItem({
   id,
@@ -25,13 +26,14 @@ export function ClauseItem({
   categoryId: string;
   categoryName: string;
   layers: { id: string; name: string; depth: number }[];
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; parentId: string | null }[];
   onSelect: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(text);
   const [selectedLayerId, setSelectedLayerId] = useState(layerId);
   const [selectedCategoryId, setSelectedCategoryId] = useState(categoryId);
+  const categoryTree = flattenCategoryTree(categories);
   const [isPending, startTransition] = useTransition();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -98,9 +100,9 @@ export function ClauseItem({
             className="rounded-full border border-black/[.08] px-3 py-1.5 text-sm dark:border-white/[.145] dark:bg-black"
             required
           >
-            {categories.map((category) => (
+            {categoryTree.map((category) => (
               <option key={category.id} value={category.id}>
-                {category.name}
+                {"—".repeat(category.depth)} {category.name}
               </option>
             ))}
           </select>

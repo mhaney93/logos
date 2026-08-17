@@ -3,17 +3,19 @@
 import { useEffect, useState, useTransition } from "react";
 import { createClause, findSimilarClauses } from "@/lib/actions/clauses";
 import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
+import { flattenCategoryTree } from "@/lib/categoryTree";
 
 export function ClauseForm({
   layers,
   categories,
 }: {
   layers: { id: string; name: string; depth: number }[];
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; parentId: string | null }[];
 }) {
   const [text, setText] = useState("");
   const [layerId, setLayerId] = useState(layers[0]?.id ?? "");
-  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
+  const categoryTree = flattenCategoryTree(categories);
+  const [categoryId, setCategoryId] = useState(categoryTree[0]?.id ?? "");
   const [suggestions, setSuggestions] = useState<{ id: string; text: string; distance: number }[]>([]);
   const [isPending, startTransition] = useTransition();
 
@@ -81,9 +83,9 @@ export function ClauseForm({
           className="rounded-full border border-black/[.08] px-3 py-2 text-sm dark:border-white/[.145] dark:bg-black"
           required
         >
-          {categories.map((category) => (
+          {categoryTree.map((category) => (
             <option key={category.id} value={category.id}>
-              {category.name}
+              {"—".repeat(category.depth)} {category.name}
             </option>
           ))}
         </select>

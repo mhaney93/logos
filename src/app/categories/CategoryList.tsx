@@ -4,8 +4,9 @@ import { useState, useTransition } from "react";
 import { deleteCategory, updateCategoryName } from "@/lib/actions/categories";
 import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
 import { ConfirmDialog } from "@/app/components/ConfirmDialog";
+import { flattenCategoryTree } from "@/lib/categoryTree";
 
-function CategoryRow({ id, name }: { id: string; name: string }) {
+function CategoryRow({ id, name, depth }: { id: string; name: string; depth: number }) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(name);
   const [isPending, startTransition] = useTransition();
@@ -29,7 +30,10 @@ function CategoryRow({ id, name }: { id: string; name: string }) {
 
   if (isEditing) {
     return (
-      <li className="flex items-center justify-between gap-3 rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.145]">
+      <li
+        className="flex items-center justify-between gap-3 rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.145]"
+        style={{ marginLeft: depth * 24 }}
+      >
         <form
           className="flex flex-1 items-center gap-3"
           onSubmit={(e) => {
@@ -79,7 +83,10 @@ function CategoryRow({ id, name }: { id: string; name: string }) {
   }
 
   return (
-    <li className="flex items-center justify-between gap-3 rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.145]">
+    <li
+      className="flex items-center justify-between gap-3 rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.145]"
+      style={{ marginLeft: depth * 24 }}
+    >
       <span>{name}</span>
       <div className="flex shrink-0 gap-3 text-xs font-medium">
         <button
@@ -106,13 +113,19 @@ function CategoryRow({ id, name }: { id: string; name: string }) {
   );
 }
 
-export function CategoryList({ categories }: { categories: { id: string; name: string }[] }) {
+export function CategoryList({
+  categories,
+}: {
+  categories: { id: string; name: string; parentId: string | null }[];
+}) {
+  const tree = flattenCategoryTree(categories);
+
   return (
     <ul className="flex flex-col gap-2">
-      {categories.map((category) => (
-        <CategoryRow key={category.id} id={category.id} name={category.name} />
+      {tree.map((category) => (
+        <CategoryRow key={category.id} id={category.id} name={category.name} depth={category.depth} />
       ))}
-      {categories.length === 0 && <p className="text-sm text-zinc-500">No categories yet.</p>}
+      {tree.length === 0 && <p className="text-sm text-zinc-500">No categories yet.</p>}
     </ul>
   );
 }

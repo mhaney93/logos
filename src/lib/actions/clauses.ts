@@ -156,8 +156,9 @@ export async function findSimilarClauses(text: string) {
   `;
 }
 
-export async function listClauses() {
+export async function listClauses(categoryIds?: string[]) {
   return prisma.clause.findMany({
+    where: categoryIds ? { categoryId: { in: categoryIds } } : undefined,
     orderBy: { createdAt: "desc" },
     include: { author: { select: { username: true } }, layer: true, category: true },
   });

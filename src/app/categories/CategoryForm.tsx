@@ -3,10 +3,17 @@
 import { useState, useTransition } from "react";
 import { createCategory } from "@/lib/actions/categories";
 import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
+import { flattenCategoryTree } from "@/lib/categoryTree";
 
-export function CategoryForm() {
+export function CategoryForm({
+  categories,
+}: {
+  categories: { id: string; name: string; parentId: string | null }[];
+}) {
   const [name, setName] = useState("");
+  const [parentId, setParentId] = useState("");
   const [isPending, startTransition] = useTransition();
+  const tree = flattenCategoryTree(categories);
 
   return (
     <form
@@ -18,7 +25,7 @@ export function CategoryForm() {
         if (password === null) return;
         startTransition(async () => {
           try {
-            await createCategory(trimmed, password);
+            await createCategory(trimmed, parentId || null, password);
             setName("");
           } catch (err) {
             if (err instanceof Error && err.message === "Incorrect password") {
@@ -33,10 +40,22 @@ export function CategoryForm() {
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="Metaethics"
+        placeholder="Category name"
         className="flex-1 rounded-full border border-black/[.08] px-4 py-2 text-sm dark:border-white/[.145]"
         required
       />
+      <select
+        value={parentId}
+        onChange={(e) => setParentId(e.target.value)}
+        className="rounded-full border border-black/[.08] px-3 py-2 text-sm dark:border-white/[.145] dark:bg-black"
+      >
+        <option value="">No parent (top-level)</option>
+        {tree.map((category) => (
+          <option key={category.id} value={category.id}>
+            {"—".repeat(category.depth)} {category.name}
+          </option>
+        ))}
+      </select>
       <button
         type="submit"
         disabled={isPending}

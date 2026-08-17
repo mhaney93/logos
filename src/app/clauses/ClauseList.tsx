@@ -18,7 +18,7 @@ export function ClauseList({
     category: { id: string; name: string };
   }[];
   layers: { id: string; name: string; depth: number }[];
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; parentId: string | null }[];
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = clauses.find((c) => c.id === selectedId) ?? null;

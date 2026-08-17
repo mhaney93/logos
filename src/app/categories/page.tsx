@@ -12,12 +12,13 @@ export default async function CategoriesPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Categories</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Topical groupings for clauses — e.g. metaphysics vs. metaethics — independent of
-          layer. Two categories can sit at the same depth.
+          Topical groupings for clauses, independent of layer, organized as a tree —
+          e.g. Philosophy &gt; Metaphysics &gt; Metaethics. Filtering by a category includes
+          all of its subcategories.
         </p>
       </div>
 
-      <CategoryForm />
+      <CategoryForm categories={categories} />
 
       <CategoryList categories={categories} />
     </div>
