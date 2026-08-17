@@ -12,7 +12,7 @@ export default async function CategoriesPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Categories</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Topical groupings for clauses, independent of layer, organized as a tree —
+          Topical groupings for clauses, organized as a tree —
           e.g. Philosophy &gt; Metaphysics &gt; Metaethics. Filtering by a category includes
           all of its subcategories.
         </p>

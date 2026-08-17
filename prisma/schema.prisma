@@ -22,20 +22,6 @@ model User {
   @@map("users")
 }
 
-// A layer of analysis (e.g. physics, biology, psychology, sociology).
-// Depth 1 is the innermost/most fundamental layer; explanatory power flows
-// from lower depths outward, never the reverse.
-model Layer {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  depth     Int      @unique
-  createdAt DateTime @default(now())
-
-  clauses Clause[]
-
-  @@map("layers")
-}
-
 // A topical grouping of clauses (e.g. metaphysics, metaethics), independent
 // of layer — two categories can sit at the same depth. Categories form a
 // tree (e.g. Philosophy > Metaphysics); filtering by an ancestor category
@@ -63,8 +49,6 @@ model Clause {
   embedding  Unsupported("vector(1024)")?
   authorId   String
   author     User                         @relation(fields: [authorId], references: [id])
-  layerId    String
-  layer      Layer                        @relation(fields: [layerId], references: [id])
   categoryId String
   category   Category                     @relation(fields: [categoryId], references: [id])
   createdAt  DateTime                     @default(now())
@@ -76,7 +60,6 @@ model Clause {
   votes     Vote[]
 
   @@index([authorId])
-  @@index([layerId])
   @@index([categoryId])
   @@map("clauses")
 }

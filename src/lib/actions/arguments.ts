@@ -28,29 +28,6 @@ function assertValidShape(
   }
 }
 
-// Explanatory power flows inward-out: a premise must belong to a layer at
-// least as fundamental (depth <= conclusion's depth) as what it supports.
-async function assertValidLayers(premiseClauseIds: string[], conclusionClauseId: string) {
-  const clauses = await prisma.clause.findMany({
-    where: { id: { in: [...premiseClauseIds, conclusionClauseId] } },
-    include: { layer: true },
-  });
-  const byId = new Map(clauses.map((c) => [c.id, c]));
-
-  const conclusion = byId.get(conclusionClauseId);
-  if (!conclusion) throw new Error("Conclusion clause not found");
-
-  for (const premiseId of premiseClauseIds) {
-    const premise = byId.get(premiseId);
-    if (!premise) throw new Error("Premise clause not found");
-    if (premise.layer.depth > conclusion.layer.depth) {
-      throw new Error(
-        `Premise "${premise.text}" (${premise.layer.name}) is less fundamental than conclusion "${conclusion.text}" (${conclusion.layer.name})`,
-      );
-    }
-  }
-}
-
 export async function createArgument(
   form: ArgumentFormId,
   premiseClauseIds: string[],
@@ -59,7 +36,6 @@ export async function createArgument(
 ) {
   assertActionPassword(password);
   assertValidShape(form, premiseClauseIds, conclusionClauseId);
-  await assertValidLayers(premiseClauseIds, conclusionClauseId);
 
   const user = await getOrCreateUser();
 
@@ -108,7 +84,6 @@ export async function updateArgument(
 ) {
   assertActionPassword(password);
   assertValidShape(form, premiseClauseIds, conclusionClauseId);
-  await assertValidLayers(premiseClauseIds, conclusionClauseId);
 
   const existing = await prisma.argument.findUnique({ where: { id: argumentId } });
   if (!existing) throw new Error("Argument not found");
@@ -176,21 +151,21 @@ export async function listArguments() {
   });
 }
 
-// The set of layers an argument "bridges" is the layer of its conclusion plus
-// the layers of its premises — and, transitively, the layers bridged by
-// whichever earlier arguments concluded those premises (a premise that's
-// itself a conclusion pulls in everything that fed into it).
-async function computeMostLayerBridgingArgumentId(): Promise<string | null> {
+// The set of categories an argument "bridges" is the category of its
+// conclusion plus the categories of its premises — and, transitively, the
+// categories bridged by whichever earlier arguments concluded those premises
+// (a premise that's itself a conclusion pulls in everything that fed into it).
+async function computeMostCategoryBridgingArgumentId(): Promise<string | null> {
   const [allArguments, premiseRows, clauses] = await Promise.all([
     prisma.argument.findMany({ select: { id: true, conclusionId: true } }),
     prisma.argumentPremise.findMany({ select: { argumentId: true, clauseId: true } }),
-    prisma.clause.findMany({ select: { id: true, layerId: true } }),
+    prisma.clause.findMany({ select: { id: true, categoryId: true } }),
   ]);
   if (allArguments.length === 0) return null;
 
   const conclusionByArgumentId = new Map(allArguments.map((a) => [a.id, a.conclusionId]));
   const argumentByConclusionClauseId = new Map(allArguments.map((a) => [a.conclusionId, a.id]));
-  const layerIdByClauseId = new Map(clauses.map((c) => [c.id, c.layerId]));
+  const categoryIdByClauseId = new Map(clauses.map((c) => [c.id, c.categoryId]));
 
   const premisesByArgument = new Map<string, string[]>();
   for (const { argumentId, clauseId } of premiseRows) {
@@ -199,36 +174,36 @@ async function computeMostLayerBridgingArgumentId(): Promise<string | null> {
     premisesByArgument.set(argumentId, list);
   }
 
-  const layersCache = new Map<string, Set<string>>();
-  function layersOf(argumentId: string, stack: Set<string>): Set<string> {
-    if (layersCache.has(argumentId)) return layersCache.get(argumentId)!;
+  const categoriesCache = new Map<string, Set<string>>();
+  function categoriesOf(argumentId: string, stack: Set<string>): Set<string> {
+    if (categoriesCache.has(argumentId)) return categoriesCache.get(argumentId)!;
     if (stack.has(argumentId)) return new Set(); // guard against cycles
     stack.add(argumentId);
 
-    const layers = new Set<string>();
+    const categories = new Set<string>();
     const conclusionClauseId = conclusionByArgumentId.get(argumentId);
-    const conclusionLayerId = conclusionClauseId && layerIdByClauseId.get(conclusionClauseId);
-    if (conclusionLayerId) layers.add(conclusionLayerId);
+    const conclusionCategoryId = conclusionClauseId && categoryIdByClauseId.get(conclusionClauseId);
+    if (conclusionCategoryId) categories.add(conclusionCategoryId);
 
     for (const premiseClauseId of premisesByArgument.get(argumentId) ?? []) {
-      const premiseLayerId = layerIdByClauseId.get(premiseClauseId);
-      if (premiseLayerId) layers.add(premiseLayerId);
+      const premiseCategoryId = categoryIdByClauseId.get(premiseClauseId);
+      if (premiseCategoryId) categories.add(premiseCategoryId);
 
       const subArgumentId = argumentByConclusionClauseId.get(premiseClauseId);
       if (subArgumentId) {
-        for (const layerId of layersOf(subArgumentId, stack)) layers.add(layerId);
+        for (const categoryId of categoriesOf(subArgumentId, stack)) categories.add(categoryId);
       }
     }
 
     stack.delete(argumentId);
-    layersCache.set(argumentId, layers);
-    return layers;
+    categoriesCache.set(argumentId, categories);
+    return categories;
   }
 
   let bestId = allArguments[0].id;
   let bestCount = -1;
   for (const { id } of allArguments) {
-    const count = layersOf(id, new Set()).size;
+    const count = categoriesOf(id, new Set()).size;
     if (count > bestCount) {
       bestCount = count;
       bestId = id;
@@ -237,8 +212,8 @@ async function computeMostLayerBridgingArgumentId(): Promise<string | null> {
   return bestId;
 }
 
-export async function getMostLayerBridgingArgument() {
-  const bestId = await computeMostLayerBridgingArgumentId();
+export async function getMostCategoryBridgingArgument() {
+  const bestId = await computeMostCategoryBridgingArgumentId();
   if (!bestId) return null;
 
   return prisma.argument.findUnique({

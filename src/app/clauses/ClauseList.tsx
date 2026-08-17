@@ -6,7 +6,6 @@ import { ClauseSupportSidebar } from "./ClauseSupportSidebar";
 
 export function ClauseList({
   clauses,
-  layers,
   categories,
 }: {
   clauses: {
@@ -14,10 +13,8 @@ export function ClauseList({
     text: string;
     support: string | null;
     author: { username: string };
-    layer: { id: string; name: string; depth: number };
     category: { id: string; name: string };
   }[];
-  layers: { id: string; name: string; depth: number }[];
   categories: { id: string; name: string; parentId: string | null }[];
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -32,11 +29,8 @@ export function ClauseList({
             id={clause.id}
             text={clause.text}
             authorUsername={clause.author.username}
-            layerId={clause.layer.id}
-            layerName={clause.layer.name}
             categoryId={clause.category.id}
             categoryName={clause.category.name}
-            layers={layers}
             categories={categories}
             onSelect={() => setSelectedId(clause.id)}
           />

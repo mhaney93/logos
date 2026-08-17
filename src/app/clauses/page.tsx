@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { listClauses } from "@/lib/actions/clauses";
-import { listLayers } from "@/lib/actions/layers";
 import { listCategories } from "@/lib/actions/categories";
 import { categoryAndDescendantIds } from "@/lib/categoryTree";
 import { ClauseForm } from "./ClauseForm";
@@ -15,7 +14,7 @@ export default async function ClausesPage({
   searchParams: Promise<{ category?: string }>;
 }) {
   const { category: categoryFilter } = await searchParams;
-  const [layers, categories] = await Promise.all([listLayers(), listCategories()]);
+  const categories = await listCategories();
 
   const categoryIds = categoryFilter
     ? categoryAndDescendantIds(categories, categoryFilter)
@@ -29,15 +28,7 @@ export default async function ClausesPage({
         {categories.length > 0 && <CategoryFilter categories={categories} />}
       </div>
 
-      {layers.length === 0 ? (
-        <p className="text-sm text-zinc-500">
-          No layers yet —{" "}
-          <Link href="/layers" className="underline">
-            create a layer
-          </Link>{" "}
-          before publishing clauses.
-        </p>
-      ) : categories.length === 0 ? (
+      {categories.length === 0 ? (
         <p className="text-sm text-zinc-500">
           No categories yet —{" "}
           <Link href="/categories" className="underline">
@@ -46,10 +37,10 @@ export default async function ClausesPage({
           before publishing clauses.
         </p>
       ) : (
-        <ClauseForm layers={layers} categories={categories} />
+        <ClauseForm categories={categories} />
       )}
 
-      <ClauseList clauses={clauses} layers={layers} categories={categories} />
+      <ClauseList clauses={clauses} categories={categories} />
     </div>
   );
 }

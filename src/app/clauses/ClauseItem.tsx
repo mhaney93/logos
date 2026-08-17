@@ -10,28 +10,21 @@ export function ClauseItem({
   id,
   text,
   authorUsername,
-  layerId,
-  layerName,
   categoryId,
   categoryName,
-  layers,
   categories,
   onSelect,
 }: {
   id: string;
   text: string;
   authorUsername: string;
-  layerId: string;
-  layerName: string;
   categoryId: string;
   categoryName: string;
-  layers: { id: string; name: string; depth: number }[];
   categories: { id: string; name: string; parentId: string | null }[];
   onSelect: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(text);
-  const [selectedLayerId, setSelectedLayerId] = useState(layerId);
   const [selectedCategoryId, setSelectedCategoryId] = useState(categoryId);
   const categoryTree = flattenCategoryTree(categories);
   const [isPending, startTransition] = useTransition();
@@ -64,7 +57,7 @@ export function ClauseItem({
             if (password === null) return;
             startTransition(async () => {
               try {
-                await updateClause(id, value, selectedLayerId, selectedCategoryId, password);
+                await updateClause(id, value, selectedCategoryId, password);
                 setIsEditing(false);
               } catch (err) {
                 if (err instanceof Error && err.message === "Incorrect password") {
@@ -82,18 +75,6 @@ export function ClauseItem({
             autoFocus
             required
           />
-          <select
-            value={selectedLayerId}
-            onChange={(e) => setSelectedLayerId(e.target.value)}
-            className="rounded-full border border-black/[.08] px-3 py-1.5 text-sm dark:border-white/[.145] dark:bg-black"
-            required
-          >
-            {layers.map((layer) => (
-              <option key={layer.id} value={layer.id}>
-                {layer.name}
-              </option>
-            ))}
-          </select>
           <select
             value={selectedCategoryId}
             onChange={(e) => setSelectedCategoryId(e.target.value)}
@@ -117,7 +98,6 @@ export function ClauseItem({
             type="button"
             onClick={() => {
               setValue(text);
-              setSelectedLayerId(layerId);
               setSelectedCategoryId(categoryId);
               setIsEditing(false);
             }}
@@ -138,7 +118,7 @@ export function ClauseItem({
       <div>
         <p>{text}</p>
         <p className="mt-1 text-xs text-zinc-500">
-          {authorUsername} · {layerName} · {categoryName}
+          {authorUsername} · {categoryName}
         </p>
       </div>
       <div className="flex shrink-0 gap-3 text-xs font-medium">

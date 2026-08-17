@@ -13,9 +13,6 @@ export function Nav() {
         <Link href="/arguments" className="text-sm font-medium">
           Arguments
         </Link>
-        <Link href="/layers" className="text-sm font-medium">
-          Layers
-        </Link>
         <Link href="/categories" className="text-sm font-medium">
           Categories
         </Link>

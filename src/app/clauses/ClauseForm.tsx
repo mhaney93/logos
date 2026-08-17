@@ -6,14 +6,11 @@ import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
 import { flattenCategoryTree } from "@/lib/categoryTree";
 
 export function ClauseForm({
-  layers,
   categories,
 }: {
-  layers: { id: string; name: string; depth: number }[];
   categories: { id: string; name: string; parentId: string | null }[];
 }) {
   const [text, setText] = useState("");
-  const [layerId, setLayerId] = useState(layers[0]?.id ?? "");
   const categoryTree = flattenCategoryTree(categories);
   const [categoryId, setCategoryId] = useState(categoryTree[0]?.id ?? "");
   const [suggestions, setSuggestions] = useState<{ id: string; text: string; distance: number }[]>([]);
@@ -40,12 +37,12 @@ export function ClauseForm({
         onSubmit={(e) => {
           e.preventDefault();
           const trimmed = text.trim();
-          if (!trimmed || !layerId || !categoryId) return;
+          if (!trimmed || !categoryId) return;
           const password = getActionPassword();
           if (password === null) return;
           startTransition(async () => {
             try {
-              await createClause(trimmed, layerId, categoryId, password);
+              await createClause(trimmed, categoryId, password);
               setText("");
               setSuggestions([]);
             } catch (err) {
@@ -65,18 +62,6 @@ export function ClauseForm({
           className="flex-1 rounded-full border border-black/[.08] px-4 py-2 text-sm dark:border-white/[.145]"
           required
         />
-        <select
-          value={layerId}
-          onChange={(e) => setLayerId(e.target.value)}
-          className="rounded-full border border-black/[.08] px-3 py-2 text-sm dark:border-white/[.145] dark:bg-black"
-          required
-        >
-          {layers.map((layer) => (
-            <option key={layer.id} value={layer.id}>
-              {layer.name}
-            </option>
-          ))}
-        </select>
         <select
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
