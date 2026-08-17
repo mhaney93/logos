@@ -52,7 +52,7 @@ export function CategoryForm({
         <option value="">No parent (top-level)</option>
         {tree.map((category) => (
           <option key={category.id} value={category.id}>
-            {"—".repeat(category.depth)} {category.name}
+            {"- ".repeat(category.depth)}{category.name}
           </option>
         ))}
       </select>
