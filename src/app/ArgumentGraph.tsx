@@ -136,41 +136,66 @@ function orderPremisesLeftToRight(graph: dagre.graphlib.Graph, argumentsList: Ar
 }
 
 const SIBLING_GAP = 60;
+const FRAME_PADDING = 20;
+
+type Box = { left: number; top: number; right: number; bottom: number };
 
 // dagre re-sorts a row whenever a category opens, so an opened category can jump
-// past its neighbors. Re-pack sibling categories in a fixed (alphabetical) order,
-// moving each one's whole contents with it. Only containers holding nothing but
-// categories are re-packed, so loose clauses in the row can't get overlapped.
-function keepCategoryOrder(
+// past its neighbors. Working from the innermost categories outward: re-pack each
+// container's sub-categories in a fixed (alphabetical) order, moving each one's
+// whole contents with it, then size the container's frame around wherever its
+// contents ended up, so the next level out packs using the real sizes. Containers
+// that also hold loose clauses keep dagre's arrangement so nothing lands on them.
+function arrangeCategories(
   graph: dagre.graphlib.Graph,
   clauses: ClauseData[],
   openPaths: Set<string>,
   foldedPaths: string[],
 ) {
-  const boxOf = (path: string) =>
-    graph.node(openPaths.has(path) ? clusterId(path) : groupNodeId(path));
+  const frames = new Map<string, Box>();
+  const nodeBox = (id: string): Box => {
+    const n = graph.node(id);
+    return { left: n.x - n.width / 2, top: n.y - n.height / 2, right: n.x + n.width / 2, bottom: n.y + n.height / 2 };
+  };
+  const boxOf = (path: string) => frames.get(path) ?? nodeBox(groupNodeId(path));
   const within = (path: string, other: string | null) =>
     other !== null && (other === path || other.startsWith(`${path}/`));
   const shift = (path: string, dx: number) => {
-    for (const p of openPaths) if (within(path, p)) graph.node(clusterId(p)).x += dx;
+    for (const p of openPaths) {
+      if (!within(path, p)) continue;
+      graph.node(clusterId(p)).x += dx;
+      const f = frames.get(p);
+      if (f) frames.set(p, { ...f, left: f.left + dx, right: f.right + dx });
+    }
     for (const p of foldedPaths) if (within(path, p)) graph.node(groupNodeId(p)).x += dx;
     for (const c of clauses) if (within(path, c.category)) graph.node(c.id).x += dx;
   };
 
-  const containers = [null, ...[...openPaths].sort((a, b) => a.split("/").length - b.split("/").length)];
-  for (const parent of containers) {
-    if (clauses.some((c) => c.category === parent)) continue;
-    const siblings = [...openPaths, ...foldedPaths]
-      .filter((p) => parentPath(p) === parent)
-      .sort();
-    if (siblings.length < 2) continue;
-    let cursor = Math.min(...siblings.map((p) => boxOf(p).x - boxOf(p).width / 2));
-    for (const p of siblings) {
-      const box = boxOf(p);
-      shift(p, cursor - (box.x - box.width / 2));
-      cursor += box.width + SIBLING_GAP;
+  const depth = (p: string | null) => (p === null ? 0 : p.split("/").length);
+  const containers = [...openPaths, null].sort((a, b) => depth(b) - depth(a));
+  for (const container of containers) {
+    const children = [...openPaths, ...foldedPaths].filter((p) => parentPath(p) === container).sort();
+    const loose = clauses.filter((c) => c.category === container);
+
+    if (loose.length === 0 && children.length >= 2) {
+      let cursor = Math.min(...children.map((p) => boxOf(p).left));
+      for (const p of children) {
+        const box = boxOf(p);
+        shift(p, cursor - box.left);
+        cursor += box.right - box.left + SIBLING_GAP;
+      }
     }
+
+    if (container === null) continue;
+    const parts = [...loose.map((c) => nodeBox(c.id)), ...children.map(boxOf)];
+    frames.set(container, {
+      left: Math.min(...parts.map((b) => b.left)) - FRAME_PADDING,
+      right: Math.max(...parts.map((b) => b.right)) + FRAME_PADDING,
+      top: Math.min(...parts.map((b) => b.top)) - FRAME_PADDING - FRAME_HEADER,
+      bottom: Math.max(...parts.map((b) => b.bottom)) + FRAME_PADDING,
+    });
   }
+  return frames;
 }
 
 function buildLayout(
@@ -195,13 +220,6 @@ function buildLayout(
   }
   for (const folded of foldedPaths) {
     for (const p of prefixes(folded)) if (p !== folded) openPaths.add(p);
-  }
-  // A frame's header sits above any frames nested inside it, so it needs one
-  // header's height per nested level to stay clear of theirs.
-  const nestedLevels = new Map<string, number>();
-  for (const p of [...openPaths].sort((a, b) => b.split("/").length - a.split("/").length)) {
-    const parent = parentPath(p);
-    if (parent) nestedLevels.set(parent, Math.max(nestedLevels.get(parent) ?? 0, (nestedLevels.get(p) ?? 0) + 1));
   }
 
   const graph = new dagre.graphlib.Graph({ compound: true });
@@ -246,23 +264,20 @@ function buildLayout(
   });
 
   dagre.layout(graph);
-  keepCategoryOrder(graph, clauses, openPaths, foldedPaths);
   orderPremisesLeftToRight(graph, argumentsList);
+  const frameBoxes = arrangeCategories(graph, clauses, openPaths, foldedPaths);
 
-  const frames: Node<FrameNodeData>[] = [...openPaths].flatMap((p) => {
-    const box = graph.node(clusterId(p));
-    if (!box?.width) return [];
-    const header = FRAME_HEADER * ((nestedLevels.get(p) ?? 0) + 1);
-    return [{
+  const frames: Node<FrameNodeData>[] = [...frameBoxes].map(([p, box]) => {
+    return {
       id: clusterId(p),
       type: "frame",
-      position: { x: box.x - box.width / 2, y: box.y - box.height / 2 - header },
+      position: { x: box.left, y: box.top },
       data: { path: p, accent: color.get(p)!, onToggle: () => toggleCategory(p) },
-      style: { width: box.width, height: box.height + header, pointerEvents: "none" as const },
+      style: { width: box.right - box.left, height: box.bottom - box.top, pointerEvents: "none" as const },
       // Outer frames render beneath the frames nested inside them.
       zIndex: -100 + p.split("/").length,
       selectable: false,
-    }];
+    };
   });
 
   const groupNodes: Node<GroupNodeData>[] = foldedPaths.map((p) => {
