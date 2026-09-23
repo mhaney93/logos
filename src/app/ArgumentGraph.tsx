@@ -135,6 +135,44 @@ function orderPremisesLeftToRight(graph: dagre.graphlib.Graph, argumentsList: Ar
   }
 }
 
+const SIBLING_GAP = 60;
+
+// dagre re-sorts a row whenever a category opens, so an opened category can jump
+// past its neighbors. Re-pack sibling categories in a fixed (alphabetical) order,
+// moving each one's whole contents with it. Only containers holding nothing but
+// categories are re-packed, so loose clauses in the row can't get overlapped.
+function keepCategoryOrder(
+  graph: dagre.graphlib.Graph,
+  clauses: ClauseData[],
+  openPaths: Set<string>,
+  foldedPaths: string[],
+) {
+  const boxOf = (path: string) =>
+    graph.node(openPaths.has(path) ? clusterId(path) : groupNodeId(path));
+  const within = (path: string, other: string | null) =>
+    other !== null && (other === path || other.startsWith(`${path}/`));
+  const shift = (path: string, dx: number) => {
+    for (const p of openPaths) if (within(path, p)) graph.node(clusterId(p)).x += dx;
+    for (const p of foldedPaths) if (within(path, p)) graph.node(groupNodeId(p)).x += dx;
+    for (const c of clauses) if (within(path, c.category)) graph.node(c.id).x += dx;
+  };
+
+  const containers = [null, ...[...openPaths].sort((a, b) => a.split("/").length - b.split("/").length)];
+  for (const parent of containers) {
+    if (clauses.some((c) => c.category === parent)) continue;
+    const siblings = [...openPaths, ...foldedPaths]
+      .filter((p) => parentPath(p) === parent)
+      .sort();
+    if (siblings.length < 2) continue;
+    let cursor = Math.min(...siblings.map((p) => boxOf(p).x - boxOf(p).width / 2));
+    for (const p of siblings) {
+      const box = boxOf(p);
+      shift(p, cursor - (box.x - box.width / 2));
+      cursor += box.width + SIBLING_GAP;
+    }
+  }
+}
+
 function buildLayout(
   allClauses: ClauseData[],
   allArguments: ArgumentData[],
@@ -208,6 +246,7 @@ function buildLayout(
   });
 
   dagre.layout(graph);
+  keepCategoryOrder(graph, clauses, openPaths, foldedPaths);
   orderPremisesLeftToRight(graph, argumentsList);
 
   const frames: Node<FrameNodeData>[] = [...openPaths].flatMap((p) => {
