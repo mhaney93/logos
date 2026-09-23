@@ -398,8 +398,11 @@ function GraphInner({
           </p>
         )}
       </div>
-      <div className="min-h-[400px] w-full flex-1 overflow-hidden rounded-lg border border-black/[.08] dark:border-white/[.145]">
+      <div className="relative min-h-[400px] w-full flex-1 overflow-hidden rounded-lg border border-black/[.08] dark:border-white/[.145]">
+        {/* RF sizes itself to 100% of its parent, which a flex-stretched height can't
+            resolve — pin it to the container instead. */}
         <ReactFlow
+          className="!absolute inset-0"
           nodes={nodes}
           edges={layout.edges}
           nodeTypes={nodeTypes}
