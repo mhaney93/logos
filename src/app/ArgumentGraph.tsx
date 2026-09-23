@@ -49,6 +49,23 @@ function ClauseNode({ data }: NodeProps<Node & { data: NodeData }>) {
 
 const nodeTypes = { clause: ClauseNode };
 
+// dagre orders nodes within a rank to minimize edge crossings and ignores
+// premise order, so swap same-rank premises' x slots back into saved order.
+// All clause nodes share one width, so exchanging slots can't cause overlap.
+function orderPremisesLeftToRight(graph: dagre.graphlib.Graph, argumentsList: ArgumentData[]) {
+  for (const argument of argumentsList) {
+    const byRank = new Map<number, { x: number }[]>();
+    for (const premise of argument.premises) {
+      const node = graph.node(premise.clauseId);
+      byRank.set(node.y, [...(byRank.get(node.y) ?? []), node]);
+    }
+    for (const rankNodes of byRank.values()) {
+      const slots = rankNodes.map((n) => n.x).sort((a, b) => a - b);
+      rankNodes.forEach((n, i) => (n.x = slots[i]));
+    }
+  }
+}
+
 function buildLayout(clauses: ClauseData[], argumentsList: ArgumentData[]) {
   const graph = new dagre.graphlib.Graph();
   graph.setGraph({ rankdir: "TB", nodesep: 40, ranksep: 80 });
@@ -66,6 +83,7 @@ function buildLayout(clauses: ClauseData[], argumentsList: ArgumentData[]) {
   }
 
   dagre.layout(graph);
+  orderPremisesLeftToRight(graph, argumentsList);
 
   const nodes: (Node & { data: NodeData })[] = clauses.map((clause) => {
     const pos = graph.node(clause.id);
