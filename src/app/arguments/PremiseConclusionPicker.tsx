@@ -51,7 +51,7 @@ export function PremiseConclusionPicker({
         const premiseIndex = premiseIds.indexOf(clause.id);
         const isPremise = premiseIndex !== -1;
         return (
-          <div key={clause.id} className="flex items-center gap-3 text-sm">
+          <div key={clause.id} className="flex items-start gap-3 text-sm">
             <label className="flex w-24 shrink-0 items-center gap-1.5">
               <input
                 type="checkbox"
@@ -61,7 +61,7 @@ export function PremiseConclusionPicker({
               />
               premise{isPremise ? ` ${premiseIndex + 1}` : ""}
             </label>
-            <label className="flex items-center gap-1.5">
+            <label className="flex shrink-0 items-center gap-1.5">
               <input
                 type="checkbox"
                 checked={isConclusion}
@@ -69,7 +69,7 @@ export function PremiseConclusionPicker({
               />
               conclusion
             </label>
-            <span className="truncate">{clause.text}</span>
+            <span className="min-w-0 flex-1 break-words">{clause.text}</span>
           </div>
         );
       })}
