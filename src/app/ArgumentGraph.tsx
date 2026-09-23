@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
+  ControlButton,
   Controls,
   Handle,
   MarkerType,
@@ -48,6 +49,18 @@ function ClauseNode({ data }: NodeProps<Node & { data: NodeData }>) {
 }
 
 const nodeTypes = { clause: ClauseNode };
+
+function FullscreenIcon({ exit }: { exit: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+      {exit ? (
+        <path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" />
+      ) : (
+        <path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" />
+      )}
+    </svg>
+  );
+}
 
 // Golden-angle hue steps keep neighboring arguments' colors far apart
 // no matter how many arguments exist.
@@ -152,7 +165,25 @@ function GraphInner({
 }) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { setCenter, getNode } = useReactFlow();
+  const { setCenter, getNode, fitView } = useReactFlow();
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    function onChange() {
+      setIsFullscreen(document.fullscreenElement === wrapperRef.current);
+      // Wait a frame for the container to resize before refitting.
+      requestAnimationFrame(() => fitView());
+    }
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, [fitView]);
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else wrapperRef.current?.requestFullscreen();
+  }
+
   const { nodes: baseNodes, edges } = useMemo(
     () => buildLayout(clauses, argumentsList),
     [clauses, argumentsList],
@@ -193,7 +224,10 @@ function GraphInner({
   const selected = clauses.find((c) => c.id === selectedId) ?? null;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      ref={wrapperRef}
+      className={`flex flex-col gap-3 ${isFullscreen ? "h-screen bg-background p-4" : ""}`}
+    >
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -208,7 +242,7 @@ function GraphInner({
           {matchingIds.size} match{matchingIds.size === 1 ? "" : "es"} — press Enter to jump to the first
         </p>
       )}
-      <div className="h-[70vh] w-full overflow-hidden rounded-lg border border-black/[.08] dark:border-white/[.145]">
+      <div className={`${isFullscreen ? "min-h-0 flex-1" : "h-[70vh]"} w-full overflow-hidden rounded-lg border border-black/[.08] dark:border-white/[.145]`}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -226,7 +260,15 @@ function GraphInner({
             setSelectedId(node.id);
           }}
         >
-          <Controls showInteractive={false} />
+          <Controls showInteractive={false}>
+            <ControlButton
+              onClick={toggleFullscreen}
+              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+              aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            >
+              <FullscreenIcon exit={isFullscreen} />
+            </ControlButton>
+          </Controls>
         </ReactFlow>
       </div>
 
