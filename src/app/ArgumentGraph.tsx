@@ -286,7 +286,7 @@ function GraphInner({
 }) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { setCenter, fitView } = useReactFlow();
+  const { setCenter, fitView, getViewport, setViewport } = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -294,14 +294,31 @@ function GraphInner({
   // Everything starts folded to the top-level branches, like an outline.
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(allPaths));
 
-  const toggleCategory = useCallback((path: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
+  // Relayout moves everything, so shift the camera by however far the clicked
+  // category moved: it stays put on screen and its neighbors make room around it.
+  const toggleCategory = useCallback(
+    (path: string) => {
+      const next = new Set(collapsed);
       if (next.has(path)) next.delete(path);
       else next.add(path);
-      return next;
-    });
-  }, []);
+
+      const anchor = (folded: Set<string>) => {
+        const { frames, groupNodes } = buildLayout(clauses, argumentsList, folded, () => {});
+        const id = folded.has(path) ? groupNodeId(path) : clusterId(path);
+        const node = [...frames, ...groupNodes].find((n) => n.id === id);
+        if (!node) return null;
+        return { x: node.position.x + Number(node.style?.width ?? CLAUSE_WIDTH) / 2, y: node.position.y };
+      };
+      const before = anchor(collapsed);
+      const after = anchor(next);
+      if (before && after) {
+        const { x, y, zoom } = getViewport();
+        setViewport({ x: x - (after.x - before.x) * zoom, y: y - (after.y - before.y) * zoom, zoom });
+      }
+      setCollapsed(next);
+    },
+    [collapsed, clauses, argumentsList, getViewport, setViewport],
+  );
 
   useEffect(() => {
     function onChange() {
@@ -373,7 +390,7 @@ function GraphInner({
   // deterministic, so its position can be computed now instead of after re-render.
   function reveal(next: Set<string>, nodeId: string) {
     setCollapsed(next);
-    const revealed = buildLayout(clauses, argumentsList, next, toggleCategory);
+    const revealed = buildLayout(clauses, argumentsList, next, () => {});
     centerOn([...revealed.groupNodes, ...revealed.clauseNodes].find((n) => n.id === nodeId));
   }
 
