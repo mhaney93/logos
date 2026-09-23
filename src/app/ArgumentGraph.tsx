@@ -49,6 +49,12 @@ function ClauseNode({ data }: NodeProps<Node & { data: NodeData }>) {
 
 const nodeTypes = { clause: ClauseNode };
 
+// Golden-angle hue steps keep neighboring arguments' colors far apart
+// no matter how many arguments exist.
+function argumentColor(index: number) {
+  return `hsl(${(index * 137.508) % 360}, 70%, 50%)`;
+}
+
 // dagre orders nodes within a rank to minimize edge crossings and ignores
 // premise order, so swap same-rank premises' x slots back into saved order.
 // All clause nodes share one width, so exchanging slots can't cause overlap.
@@ -100,17 +106,20 @@ function buildLayout(clauses: ClauseData[], argumentsList: ArgumentData[]) {
   });
 
   const edges: Edge[] = [];
-  for (const argument of argumentsList) {
+  argumentsList.forEach((argument, index) => {
+    // argumentsList is newest-first; count from the oldest so adding an
+    // argument doesn't recolor the existing ones.
+    const color = argumentColor(argumentsList.length - 1 - index);
     for (const premise of argument.premises) {
       edges.push({
         id: `e-${argument.id}-${premise.clauseId}`,
         source: premise.clauseId,
         target: argument.conclusionId,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        style: { opacity: 0.5 },
+        markerEnd: { type: MarkerType.ArrowClosed, color },
+        style: { stroke: color, strokeWidth: 2, opacity: 0.85 },
       });
     }
-  }
+  });
 
   return { nodes, edges };
 }
