@@ -80,13 +80,14 @@ function GroupNode({ data }: NodeProps<Node<GroupNodeData>>) {
 function FrameNode({ data }: NodeProps<Node<FrameNodeData>>) {
   return (
     <div
-      className="h-full w-full rounded-2xl"
+      className="flex h-full w-full justify-center rounded-2xl"
       style={{ border: `1px dashed ${data.accent}`, background: `color-mix(in srgb, ${data.accent} 6%, transparent)` }}
     >
+      {/* Centered so the name lands where the folded node's name was. */}
       <button
         type="button"
         onClick={data.onToggle}
-        className="nodrag nopan m-1.5 rounded-full px-3 py-0.5 text-xs font-semibold"
+        className="nodrag nopan m-1.5 self-start rounded-full px-3 py-0.5 text-xs font-semibold"
         style={{ pointerEvents: "auto", background: `color-mix(in srgb, ${data.accent} 20%, var(--background))` }}
       >
         {categoryName(data.path)} ▾ collapse
