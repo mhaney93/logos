@@ -248,6 +248,7 @@ function GraphInner({
           edges={edges}
           nodeTypes={nodeTypes}
           fitView
+          minZoom={0.05}
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
