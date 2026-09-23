@@ -1,35 +1,26 @@
-import { getMostCategoryBridgingArgument } from "@/lib/actions/arguments";
-import { ConclusionCard } from "./ConclusionCard";
+import { listArguments } from "@/lib/actions/arguments";
+import { listClauses } from "@/lib/actions/clauses";
+import { ArgumentGraph } from "./ArgumentGraph";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const argument = await getMostCategoryBridgingArgument();
+  const [clauses, argumentsList] = await Promise.all([listClauses(), listArguments()]);
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-8 py-12">
-      <div className="flex flex-col gap-2 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Conclusions
-        </h1>
-      </div>
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-8 py-12">
+      <h1 className="text-center text-3xl font-semibold tracking-tight">
+        Argument Graph
+      </h1>
 
-      {argument ? (
-        <ConclusionCard
-          key={argument.id}
-          premises={argument.premises.map((p) => ({
-            clauseId: p.clauseId,
-            text: p.clause.text,
-          }))}
-          conclusionText={argument.conclusion.text}
-          authorUsername={argument.author.username}
-          citationCount={argument._count.citationsReceived}
-        />
-      ) : (
-        <p className="text-center text-sm text-zinc-500">
-          No conclusions yet — be the first to build an argument.
-        </p>
-      )}
+      <ArgumentGraph
+        clauses={clauses.map((c) => ({ id: c.id, text: c.text, support: c.support }))}
+        arguments={argumentsList.map((a) => ({
+          id: a.id,
+          conclusionId: a.conclusionId,
+          premises: a.premises.map((p) => ({ clauseId: p.clauseId })),
+        }))}
+      />
     </main>
   );
 }

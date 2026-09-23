@@ -1,42 +1,65 @@
 "use client";
 
+import { useState } from "react";
+
+export function usePremiseConclusionSelection(
+  initialPremiseIds: string[] = [],
+  initialConclusionId: string | null = null,
+) {
+  const [premiseIds, setPremiseIds] = useState<string[]>(initialPremiseIds);
+  const [conclusionId, setConclusionId] = useState<string | null>(initialConclusionId);
+
+  function togglePremise(id: string) {
+    setPremiseIds((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+    );
+  }
+
+  function toggleConclusion(id: string) {
+    setConclusionId((prev) => (prev === id ? null : id));
+    setPremiseIds((prev) => prev.filter((p) => p !== id));
+  }
+
+  function reset() {
+    setPremiseIds(initialPremiseIds);
+    setConclusionId(initialConclusionId);
+  }
+
+  return { premiseIds, conclusionId, togglePremise, toggleConclusion, reset };
+}
+
 export function PremiseConclusionPicker({
   clauses,
   premiseIds,
   conclusionId,
-  maxPremises,
   onTogglePremise,
   onToggleConclusion,
 }: {
   clauses: { id: string; text: string }[];
-  premiseIds: Set<string>;
+  premiseIds: string[];
   conclusionId: string | null;
-  maxPremises: number | null;
   onTogglePremise: (id: string) => void;
   onToggleConclusion: (id: string) => void;
 }) {
-  const atMax = maxPremises !== null && premiseIds.size >= maxPremises;
-
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className="mb-1 text-sm font-medium">
-        Premises ({premiseIds.size}
-        {maxPremises !== null ? `/${maxPremises}` : ""}) and conclusion (pick
-        one)
+        Premises, in the order you click them, and one conclusion
       </legend>
       {clauses.map((clause) => {
         const isConclusion = conclusionId === clause.id;
-        const isPremise = premiseIds.has(clause.id);
+        const premiseIndex = premiseIds.indexOf(clause.id);
+        const isPremise = premiseIndex !== -1;
         return (
           <div key={clause.id} className="flex items-center gap-3 text-sm">
-            <label className="flex items-center gap-1.5">
+            <label className="flex w-24 shrink-0 items-center gap-1.5">
               <input
                 type="checkbox"
                 checked={isPremise}
-                disabled={isConclusion || (atMax && !isPremise)}
+                disabled={isConclusion}
                 onChange={() => onTogglePremise(clause.id)}
               />
-              premise
+              premise{isPremise ? ` ${premiseIndex + 1}` : ""}
             </label>
             <label className="flex items-center gap-1.5">
               <input

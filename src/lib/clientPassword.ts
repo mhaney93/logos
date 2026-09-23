@@ -18,3 +18,17 @@ export function getActionPassword(): string | null {
 export function clearActionPassword() {
   localStorage.removeItem(STORAGE_KEY);
 }
+
+// Handles the { ok, data | error } shape returned by server actions.
+// Returns the data on success, or null (after alerting) on failure.
+export function unwrapActionResult<T>(
+  result: { ok: true; data: T } | { ok: false; error: string },
+): T | null {
+  if (result.ok) return result.data;
+
+  if (result.error === "Incorrect password") {
+    clearActionPassword();
+  }
+  alert(result.error);
+  return null;
+}

@@ -6,37 +6,39 @@ import { ClauseSupportSidebar } from "./ClauseSupportSidebar";
 
 export function ClauseList({
   clauses,
-  categories,
+  query,
 }: {
   clauses: {
     id: string;
     text: string;
     support: string | null;
-    author: { username: string };
-    category: { id: string; name: string };
   }[];
-  categories: { id: string; name: string; parentId: string | null }[];
+  query: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = clauses.find((c) => c.id === selectedId) ?? null;
 
+  const trimmedQuery = query.trim().toLowerCase();
+  const visibleClauses = trimmedQuery
+    ? clauses.filter((c) => c.text.toLowerCase().includes(trimmedQuery))
+    : clauses;
+
   return (
     <>
       <ul className="flex flex-col gap-3">
-        {clauses.map((clause) => (
+        {visibleClauses.map((clause) => (
           <ClauseItem
             key={clause.id}
             id={clause.id}
             text={clause.text}
-            authorUsername={clause.author.username}
-            categoryId={clause.category.id}
-            categoryName={clause.category.name}
-            categories={categories}
             onSelect={() => setSelectedId(clause.id)}
           />
         ))}
         {clauses.length === 0 && (
           <p className="text-sm text-zinc-500">No clauses yet.</p>
+        )}
+        {clauses.length > 0 && visibleClauses.length === 0 && (
+          <p className="text-sm text-zinc-500">No clauses match &quot;{query}&quot;.</p>
         )}
       </ul>
 

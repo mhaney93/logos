@@ -2,6 +2,7 @@ import { listArguments } from "@/lib/actions/arguments";
 import { listClauses } from "@/lib/actions/clauses";
 import { ArgumentForm } from "./ArgumentForm";
 import { ArgumentItem } from "./ArgumentItem";
+import { ValidFormsReference } from "./ValidFormsReference";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,8 @@ export default async function ArgumentsPage() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-8 py-12">
       <h1 className="text-2xl font-semibold tracking-tight">Arguments</h1>
+
+      <ValidFormsReference />
 
       {clauses.length === 0 ? (
         <p className="text-sm text-zinc-500">
@@ -25,13 +28,11 @@ export default async function ArgumentsPage() {
           <ArgumentItem
             key={argument.id}
             id={argument.id}
-            form={argument.form}
             premises={argument.premises.map((p) => ({
               clauseId: p.clauseId,
               text: p.clause.text,
             }))}
             conclusion={argument.conclusion}
-            authorUsername={argument.author.username}
             citationCount={argument._count.citationsReceived}
             allClauses={clauses}
           />

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { updateClauseSupport } from "@/lib/actions/clauses";
-import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
+import { getActionPassword, unwrapActionResult } from "@/lib/clientPassword";
 
 export function ClauseSupportSidebar({
   id,
@@ -34,14 +34,8 @@ export function ClauseSupportSidebar({
     const password = getActionPassword();
     if (password === null) return;
     startTransition(async () => {
-      try {
-        await updateClauseSupport(id, value, password);
-      } catch (err) {
-        if (err instanceof Error && err.message === "Incorrect password") {
-          clearActionPassword();
-        }
-        alert(err instanceof Error ? err.message : "Failed to save");
-      }
+      const result = await updateClauseSupport(id, value, password);
+      unwrapActionResult(result);
     });
   }
 

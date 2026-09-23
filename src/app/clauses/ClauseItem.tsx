@@ -2,31 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { deleteClause, updateClause } from "@/lib/actions/clauses";
-import { clearActionPassword, getActionPassword } from "@/lib/clientPassword";
+import { getActionPassword, unwrapActionResult } from "@/lib/clientPassword";
 import { ConfirmDialog } from "@/app/components/ConfirmDialog";
-import { flattenCategoryTree } from "@/lib/categoryTree";
 
 export function ClauseItem({
   id,
   text,
-  authorUsername,
-  categoryId,
-  categoryName,
-  categories,
   onSelect,
 }: {
   id: string;
   text: string;
-  authorUsername: string;
-  categoryId: string;
-  categoryName: string;
-  categories: { id: string; name: string; parentId: string | null }[];
   onSelect: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(text);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(categoryId);
-  const categoryTree = flattenCategoryTree(categories);
   const [isPending, startTransition] = useTransition();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -35,14 +24,8 @@ export function ClauseItem({
     const password = getActionPassword();
     if (password === null) return;
     startTransition(async () => {
-      try {
-        await deleteClause(id, password);
-      } catch (err) {
-        if (err instanceof Error && err.message === "Incorrect password") {
-          clearActionPassword();
-        }
-        alert(err instanceof Error ? err.message : "Failed to delete");
-      }
+      const result = await deleteClause(id, password);
+      unwrapActionResult(result);
     });
   }
 
@@ -56,15 +39,9 @@ export function ClauseItem({
             const password = getActionPassword();
             if (password === null) return;
             startTransition(async () => {
-              try {
-                await updateClause(id, value, selectedCategoryId, password);
-                setIsEditing(false);
-              } catch (err) {
-                if (err instanceof Error && err.message === "Incorrect password") {
-                  clearActionPassword();
-                }
-                alert(err instanceof Error ? err.message : "Failed to save");
-              }
+              const result = await updateClause(id, value, password);
+              if (unwrapActionResult(result) === null) return;
+              setIsEditing(false);
             });
           }}
         >
@@ -75,18 +52,6 @@ export function ClauseItem({
             autoFocus
             required
           />
-          <select
-            value={selectedCategoryId}
-            onChange={(e) => setSelectedCategoryId(e.target.value)}
-            className="rounded-full border border-black/[.08] px-3 py-1.5 text-sm dark:border-white/[.145] dark:bg-black"
-            required
-          >
-            {categoryTree.map((category) => (
-              <option key={category.id} value={category.id}>
-                {"- ".repeat(category.depth)}{category.name}
-              </option>
-            ))}
-          </select>
           <button
             type="submit"
             disabled={isPending}
@@ -98,7 +63,6 @@ export function ClauseItem({
             type="button"
             onClick={() => {
               setValue(text);
-              setSelectedCategoryId(categoryId);
               setIsEditing(false);
             }}
             className="rounded-full px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/[.04] dark:hover:bg-white/[.08]"
@@ -115,12 +79,7 @@ export function ClauseItem({
       onClick={onSelect}
       className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-black/[.08] px-4 py-3 hover:border-black/[.16] dark:border-white/[.145] dark:hover:border-white/[.25]"
     >
-      <div>
-        <p>{text}</p>
-        <p className="mt-1 text-xs text-zinc-500">
-          {authorUsername} · {categoryName}
-        </p>
-      </div>
+      <p>{text}</p>
       <div className="flex shrink-0 gap-3 text-xs font-medium">
         <button
           onClick={(e) => {
