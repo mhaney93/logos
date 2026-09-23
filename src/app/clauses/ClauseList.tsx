@@ -12,11 +12,13 @@ export function ClauseList({
     id: string;
     text: string;
     support: string | null;
+    category: string | null;
   }[];
   query: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = clauses.find((c) => c.id === selectedId) ?? null;
+  const categories = [...new Set(clauses.flatMap((c) => (c.category ? [c.category] : [])))].sort();
 
   const trimmedQuery = query.trim().toLowerCase();
   const visibleClauses = trimmedQuery
@@ -44,9 +46,12 @@ export function ClauseList({
 
       {selected && (
         <ClauseSupportSidebar
+          key={selected.id}
           id={selected.id}
           text={selected.text}
           support={selected.support}
+          category={selected.category}
+          categories={categories}
           onClose={() => setSelectedId(null)}
         />
       )}

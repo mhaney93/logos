@@ -1,26 +1,27 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { updateClauseSupport } from "@/lib/actions/clauses";
+import { updateClauseDetails } from "@/lib/actions/clauses";
 import { getActionPassword, unwrapActionResult } from "@/lib/clientPassword";
 
 export function ClauseSupportSidebar({
   id,
   text,
   support,
+  category,
+  categories,
   onClose,
 }: {
   id: string;
   text: string;
   support: string | null;
+  category: string | null;
+  categories: string[];
   onClose: () => void;
 }) {
   const [value, setValue] = useState(support ?? "");
+  const [categoryValue, setCategoryValue] = useState(category ?? "");
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    setValue(support ?? "");
-  }, [id, support]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -34,7 +35,7 @@ export function ClauseSupportSidebar({
     const password = getActionPassword();
     if (password === null) return;
     startTransition(async () => {
-      const result = await updateClauseSupport(id, value, password);
+      const result = await updateClauseDetails(id, value, categoryValue, password);
       unwrapActionResult(result);
     });
   }
@@ -54,6 +55,25 @@ export function ClauseSupportSidebar({
           >
             Close
           </button>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label htmlFor="clause-category" className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Category
+          </label>
+          <input
+            id="clause-category"
+            list="clause-categories"
+            value={categoryValue}
+            onChange={(e) => setCategoryValue(e.target.value)}
+            placeholder="e.g. Ethics/Virtues/Courage"
+            className="rounded-lg border border-black/[.08] px-3 py-2 text-sm dark:border-white/[.145]"
+          />
+          <datalist id="clause-categories">
+            {categories.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
         </div>
 
         <div className="flex flex-1 flex-col gap-2">

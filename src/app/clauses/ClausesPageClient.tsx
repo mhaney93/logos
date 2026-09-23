@@ -7,7 +7,7 @@ import { ClauseList } from "./ClauseList";
 export function ClausesPageClient({
   clauses,
 }: {
-  clauses: { id: string; text: string; support: string | null }[];
+  clauses: { id: string; text: string; support: string | null; category: string | null }[];
 }) {
   const [query, setQuery] = useState("");
 

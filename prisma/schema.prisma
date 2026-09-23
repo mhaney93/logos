@@ -26,6 +26,8 @@ model Clause {
   id        String                       @id @default(cuid())
   text      String
   support   String?
+  // Display-only folder path like "Ethics/Virtues/Courage"; never a logical claim
+  category  String?
   embedding Unsupported("vector(1024)")?
   authorId  String
   author    User                         @relation(fields: [authorId], references: [id])

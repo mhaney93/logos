@@ -10,7 +10,7 @@ export default async function Home() {
   return (
     <main className="flex min-h-0 w-full flex-1 flex-col px-4 py-3">
       <ArgumentGraph
-        clauses={clauses.map((c) => ({ id: c.id, text: c.text, support: c.support }))}
+        clauses={clauses.map((c) => ({ id: c.id, text: c.text, support: c.support, category: c.category }))}
         arguments={argumentsList.map((a) => ({
           id: a.id,
           conclusionId: a.conclusionId,

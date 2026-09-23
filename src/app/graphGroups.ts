@@ -1,58 +1,61 @@
-export type ClauseData = { id: string; text: string; support: string | null };
+export type ClauseData = {
+  id: string;
+  text: string;
+  support: string | null;
+  category: string | null;
+};
 export type ArgumentData = {
   id: string;
   conclusionId: string;
   premises: { clauseId: string }[];
 };
 
-// Groups are display-only: read from a clause's Notes, never asserted as logical links.
-const GROUP_PATTERN = /^Subordinate virtue · ([^.]+?)(?: \(group head\))?\./;
+// Categories are display-only folder paths ("Ethics/Virtues/Courage"), never
+// logical links. Every prefix of a path is itself a foldable category.
+export const groupNodeId = (path: string) => `group:${path}`;
+export const clusterId = (path: string) => `cluster:${path}`;
+export const categoryName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
+export const parentPath = (path: string) =>
+  path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : null;
 
-export function groupOf(support: string | null) {
-  return support?.match(GROUP_PATTERN)?.[1] ?? null;
+export function prefixes(path: string) {
+  const parts = path.split("/");
+  return parts.map((_, i) => parts.slice(0, i + 1).join("/"));
 }
 
-export const groupNodeId = (group: string) => `group:${group}`;
-export const clusterId = (group: string) => `cluster:${group}`;
-
-// A grouped clause also claims its argument's private premises (used by no other
-// argument and derived from nothing), so collapsing the group hides them too.
-export function groupMembership(clauses: ClauseData[], argumentsList: ArgumentData[]) {
-  const useCount = new Map<string, number>();
-  for (const argument of argumentsList) {
-    for (const premise of argument.premises) {
-      useCount.set(premise.clauseId, (useCount.get(premise.clauseId) ?? 0) + 1);
-    }
-  }
-  const concludedBy = new Map(argumentsList.map((a) => [a.conclusionId, a]));
-
-  const membership = new Map<string, string>();
-  const heads = new Map<string, number>();
+export function allCategoryPaths(clauses: ClauseData[]) {
+  const paths = new Set<string>();
   for (const clause of clauses) {
-    const group = groupOf(clause.support);
-    if (!group) continue;
-    membership.set(clause.id, group);
-    heads.set(group, (heads.get(group) ?? 0) + 1);
-    for (const premise of concludedBy.get(clause.id)?.premises ?? []) {
-      if (useCount.get(premise.clauseId) === 1 && !concludedBy.has(premise.clauseId)) {
-        membership.set(premise.clauseId, group);
-      }
-    }
+    if (clause.category) for (const p of prefixes(clause.category)) paths.add(p);
   }
-  return { membership, virtueCounts: heads, groups: [...heads.keys()].sort() };
+  return [...paths].sort();
 }
 
-// Replace every clause in a collapsed group with that group's single node,
-// rerouting arguments through it and dropping links that fall inside the group.
-export function collapseGroups(
+export function clauseCounts(clauses: ClauseData[]) {
+  const counts = new Map<string, number>();
+  for (const clause of clauses) {
+    if (!clause.category) continue;
+    for (const p of prefixes(clause.category)) counts.set(p, (counts.get(p) ?? 0) + 1);
+  }
+  return counts;
+}
+
+// The outermost collapsed category containing this path, if any.
+export function collapsedAncestor(path: string | null, collapsed: Set<string>) {
+  return path ? (prefixes(path).find((p) => collapsed.has(p)) ?? null) : null;
+}
+
+// Replace every clause inside a collapsed category with that category's single
+// node, rerouting arguments through it and dropping links that fall inside it.
+export function collapseCategories(
   clauses: ClauseData[],
   argumentsList: ArgumentData[],
-  membership: Map<string, string>,
   collapsed: Set<string>,
 ) {
+  const categoryOf = new Map(clauses.map((c) => [c.id, c.category]));
   const rep = (id: string) => {
-    const group = membership.get(id);
-    return group && collapsed.has(group) ? groupNodeId(group) : id;
+    const folded = collapsedAncestor(categoryOf.get(id) ?? null, collapsed);
+    return folded ? groupNodeId(folded) : id;
   };
 
   const visibleArguments = argumentsList
@@ -67,9 +70,13 @@ export function collapseGroups(
     })
     .filter((argument) => argument.premises.length > 0);
 
-  return {
-    clauses: clauses.filter((c) => rep(c.id) === c.id),
-    collapsedGroups: [...collapsed].filter((g) => [...membership.values()].includes(g)),
-    arguments: visibleArguments,
-  };
+  const foldedPaths = new Set<string>();
+  const visibleClauses: ClauseData[] = [];
+  for (const clause of clauses) {
+    const folded = collapsedAncestor(clause.category, collapsed);
+    if (folded) foldedPaths.add(folded);
+    else visibleClauses.push(clause);
+  }
+
+  return { clauses: visibleClauses, foldedPaths: [...foldedPaths].sort(), arguments: visibleArguments };
 }

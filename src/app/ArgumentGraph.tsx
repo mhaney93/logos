@@ -18,10 +18,15 @@ import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import { ClauseSupportSidebar } from "./clauses/ClauseSupportSidebar";
 import {
+  allCategoryPaths,
+  categoryName,
+  clauseCounts,
   clusterId,
-  collapseGroups,
-  groupMembership,
+  collapseCategories,
+  collapsedAncestor,
   groupNodeId,
+  parentPath,
+  prefixes,
   type ArgumentData,
   type ClauseData,
 } from "./graphGroups";
@@ -39,8 +44,8 @@ function estimateClauseHeight(text: string) {
 }
 
 type ClauseNodeData = { label: string; accent?: string };
-type GroupNodeData = { label: string; count: number; accent: string; onToggle: () => void };
-type FrameNodeData = { label: string; accent: string; onToggle: () => void };
+type GroupNodeData = { path: string; count: number; accent: string; onToggle: () => void };
+type FrameNodeData = { path: string; accent: string; onToggle: () => void };
 
 function ClauseNode({ data }: NodeProps<Node<ClauseNodeData>>) {
   return (
@@ -62,9 +67,9 @@ function GroupNode({ data }: NodeProps<Node<GroupNodeData>>) {
         className="nodrag nopan flex h-full w-full flex-col items-center justify-center gap-0.5 rounded-[10px] text-xs"
         style={{ border: `2px solid ${data.accent}`, background: `color-mix(in srgb, ${data.accent} 15%, var(--background))` }}
       >
-        <span className="font-semibold">{data.label} ▸</span>
+        <span className="font-semibold">{categoryName(data.path)} ▸</span>
         <span className="opacity-70">
-          {data.count} virtue{data.count === 1 ? "" : "s"} — click to expand
+          {data.count} clause{data.count === 1 ? "" : "s"} — click to expand
         </span>
       </button>
       <Handle type="source" position={Position.Bottom} />
@@ -76,15 +81,15 @@ function FrameNode({ data }: NodeProps<Node<FrameNodeData>>) {
   return (
     <div
       className="h-full w-full rounded-2xl"
-      style={{ border: `1px dashed ${data.accent}`, background: `color-mix(in srgb, ${data.accent} 7%, transparent)` }}
+      style={{ border: `1px dashed ${data.accent}`, background: `color-mix(in srgb, ${data.accent} 6%, transparent)` }}
     >
       <button
         type="button"
         onClick={data.onToggle}
-        className="nodrag nopan m-2 rounded-full px-3 py-0.5 text-xs font-semibold"
+        className="nodrag nopan m-1.5 rounded-full px-3 py-0.5 text-xs font-semibold"
         style={{ pointerEvents: "auto", background: `color-mix(in srgb, ${data.accent} 20%, var(--background))` }}
       >
-        {data.label} ▾ collapse
+        {categoryName(data.path)} ▾ collapse
       </button>
     </div>
   );
@@ -113,16 +118,16 @@ function hueColor(index: number) {
 // dagre orders nodes within a rank to minimize edge crossings and ignores
 // premise order, so swap same-rank premises' x slots back into saved order.
 // All clause nodes share one width, so exchanging slots can't cause overlap.
-// Swaps stay within one group frame so no clause gets pulled out of its frame.
+// Swaps stay within one frame so no clause gets pulled out of its frame.
 function orderPremisesLeftToRight(graph: dagre.graphlib.Graph, argumentsList: ArgumentData[]) {
   for (const argument of argumentsList) {
-    const bySlotGroup = new Map<string, { x: number }[]>();
+    const bySlot = new Map<string, { x: number }[]>();
     for (const premise of argument.premises) {
       const node = graph.node(premise.clauseId);
       const key = `${node.y}|${graph.parent(premise.clauseId) ?? ""}`;
-      bySlotGroup.set(key, [...(bySlotGroup.get(key) ?? []), node]);
+      bySlot.set(key, [...(bySlot.get(key) ?? []), node]);
     }
-    for (const slotNodes of bySlotGroup.values()) {
+    for (const slotNodes of bySlot.values()) {
       const slots = slotNodes.map((n) => n.x).sort((a, b) => a - b);
       slotNodes.forEach((n, i) => (n.x = slots[i]));
     }
@@ -133,31 +138,51 @@ function buildLayout(
   allClauses: ClauseData[],
   allArguments: ArgumentData[],
   collapsed: Set<string>,
-  toggleGroup: (group: string) => void,
+  toggleCategory: (path: string) => void,
 ) {
-  const { membership, virtueCounts, groups } = groupMembership(allClauses, allArguments);
-  const groupColor = new Map(groups.map((g, i) => [g, hueColor(i + 3)]));
-  const { clauses, collapsedGroups, arguments: argumentsList } = collapseGroups(
+  const paths = allCategoryPaths(allClauses);
+  const color = new Map(paths.map((p, i) => [p, hueColor(i + 3)]));
+  const counts = clauseCounts(allClauses);
+  const { clauses, foldedPaths, arguments: argumentsList } = collapseCategories(
     allClauses,
     allArguments,
-    membership,
     collapsed,
   );
 
+  // Every open category that still contains something visible gets a frame.
+  const openPaths = new Set<string>();
+  for (const clause of clauses) {
+    if (clause.category) for (const p of prefixes(clause.category)) openPaths.add(p);
+  }
+  for (const folded of foldedPaths) {
+    for (const p of prefixes(folded)) if (p !== folded) openPaths.add(p);
+  }
+  // A frame's header sits above any frames nested inside it, so it needs one
+  // header's height per nested level to stay clear of theirs.
+  const nestedLevels = new Map<string, number>();
+  for (const p of [...openPaths].sort((a, b) => b.split("/").length - a.split("/").length)) {
+    const parent = parentPath(p);
+    if (parent) nestedLevels.set(parent, Math.max(nestedLevels.get(parent) ?? 0, (nestedLevels.get(p) ?? 0) + 1));
+  }
+
   const graph = new dagre.graphlib.Graph({ compound: true });
-  graph.setGraph({ rankdir: "TB", nodesep: 40, ranksep: 80 });
+  graph.setGraph({ rankdir: "TB", nodesep: 40, ranksep: 110 });
   graph.setDefaultEdgeLabel(() => ({}));
 
+  for (const p of openPaths) graph.setNode(clusterId(p), {});
+  for (const p of openPaths) {
+    const parent = parentPath(p);
+    if (parent) graph.setParent(clusterId(p), clusterId(parent));
+  }
   const heights = new Map(clauses.map((c) => [c.id, estimateClauseHeight(c.text)]));
-  const expandedGroups = groups.filter((g) => !collapsed.has(g));
-  for (const group of expandedGroups) graph.setNode(clusterId(group), {});
   for (const clause of clauses) {
     graph.setNode(clause.id, { width: CLAUSE_WIDTH, height: heights.get(clause.id) });
-    const group = membership.get(clause.id);
-    if (group) graph.setParent(clause.id, clusterId(group));
+    if (clause.category) graph.setParent(clause.id, clusterId(clause.category));
   }
-  for (const group of collapsedGroups) {
-    graph.setNode(groupNodeId(group), { width: CLAUSE_WIDTH, height: CLAUSE_MIN_HEIGHT });
+  for (const folded of foldedPaths) {
+    graph.setNode(groupNodeId(folded), { width: CLAUSE_WIDTH, height: CLAUSE_MIN_HEIGHT });
+    const parent = parentPath(folded);
+    if (parent) graph.setParent(groupNodeId(folded), clusterId(parent));
   }
 
   const edgeKeys = new Set<string>();
@@ -165,7 +190,7 @@ function buildLayout(
   argumentsList.forEach((argument, index) => {
     // argumentsList is newest-first; count from the oldest so adding an
     // argument doesn't recolor the existing ones.
-    const color = hueColor(argumentsList.length - 1 - index);
+    const edgeColor = hueColor(argumentsList.length - 1 - index);
     for (const premise of argument.premises) {
       const key = `${premise.clauseId}->${argument.conclusionId}`;
       if (edgeKeys.has(key)) continue;
@@ -175,8 +200,8 @@ function buildLayout(
         id: `e-${argument.id}-${premise.clauseId}`,
         source: premise.clauseId,
         target: argument.conclusionId,
-        markerEnd: { type: MarkerType.ArrowClosed, color },
-        style: { stroke: color, strokeWidth: 2, opacity: 0.85 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor },
+        style: { stroke: edgeColor, strokeWidth: 2, opacity: 0.85 },
       });
     }
   });
@@ -184,32 +209,29 @@ function buildLayout(
   dagre.layout(graph);
   orderPremisesLeftToRight(graph, argumentsList);
 
-  const frames: Node[] = expandedGroups.flatMap((group) => {
-    const box = graph.node(clusterId(group));
+  const frames: Node<FrameNodeData>[] = [...openPaths].flatMap((p) => {
+    const box = graph.node(clusterId(p));
     if (!box?.width) return [];
+    const header = FRAME_HEADER * ((nestedLevels.get(p) ?? 0) + 1);
     return [{
-      id: clusterId(group),
+      id: clusterId(p),
       type: "frame",
-      position: { x: box.x - box.width / 2, y: box.y - box.height / 2 - FRAME_HEADER },
-      data: { label: group, accent: groupColor.get(group)!, onToggle: () => toggleGroup(group) },
-      style: { width: box.width, height: box.height + FRAME_HEADER, pointerEvents: "none" as const },
-      zIndex: -1,
+      position: { x: box.x - box.width / 2, y: box.y - box.height / 2 - header },
+      data: { path: p, accent: color.get(p)!, onToggle: () => toggleCategory(p) },
+      style: { width: box.width, height: box.height + header, pointerEvents: "none" as const },
+      // Outer frames render beneath the frames nested inside them.
+      zIndex: -100 + p.split("/").length,
       selectable: false,
     }];
   });
 
-  const groupNodes: Node[] = collapsedGroups.map((group) => {
-    const pos = graph.node(groupNodeId(group));
+  const groupNodes: Node<GroupNodeData>[] = foldedPaths.map((p) => {
+    const pos = graph.node(groupNodeId(p));
     return {
-      id: groupNodeId(group),
+      id: groupNodeId(p),
       type: "group",
       position: { x: pos.x - CLAUSE_WIDTH / 2, y: pos.y - CLAUSE_MIN_HEIGHT / 2 },
-      data: {
-        label: group,
-        count: virtueCounts.get(group) ?? 0,
-        accent: groupColor.get(group)!,
-        onToggle: () => toggleGroup(group),
-      },
+      data: { path: p, count: counts.get(p) ?? 0, accent: color.get(p)!, onToggle: () => toggleCategory(p) },
       style: { width: CLAUSE_WIDTH, height: CLAUSE_MIN_HEIGHT, pointerEvents: "auto" as const },
     };
   });
@@ -217,19 +239,18 @@ function buildLayout(
   const clauseNodes: Node<ClauseNodeData>[] = clauses.map((clause) => {
     const pos = graph.node(clause.id);
     const height = heights.get(clause.id)!;
-    const group = membership.get(clause.id);
     return {
       id: clause.id,
       type: "clause",
       position: { x: pos.x - CLAUSE_WIDTH / 2, y: pos.y - height / 2 },
-      data: { label: clause.text, accent: group ? groupColor.get(group) : undefined },
+      data: { label: clause.text, accent: clause.category ? color.get(clause.category) : undefined },
       // RF sets pointer-events: none on nodes when nothing RF-interactive
       // (drag/connect/select) is enabled — re-enable so text is clickable.
       style: { width: CLAUSE_WIDTH, minHeight: height, pointerEvents: "auto" as const },
     };
   });
 
-  return { frames, groupNodes, clauseNodes, edges, membership, groups };
+  return { frames, groupNodes, clauseNodes, edges };
 }
 
 function clauseNodeStyle(matchState: "match" | "dim" | "normal", accent?: string) {
@@ -251,8 +272,8 @@ function clauseNodeStyle(matchState: "match" | "dim" | "normal", accent?: string
   };
 }
 
-function groupNodeStyle(matchState: "match" | "dim" | "normal") {
-  if (matchState === "match") return { borderRadius: 12, boxShadow: "0 0 0 3px #f59e0b" };
+function highlightStyle(matchState: "match" | "dim" | "normal", radius: number) {
+  if (matchState === "match") return { borderRadius: radius, boxShadow: "0 0 0 3px #f59e0b" };
   return { opacity: matchState === "dim" ? 0.3 : 1 };
 }
 
@@ -269,18 +290,15 @@ function GraphInner({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const allGroups = useMemo(
-    () => groupMembership(clauses, argumentsList).groups,
-    [clauses, argumentsList],
-  );
-  // Groups start collapsed, like the outline they came from.
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(allGroups));
+  const allPaths = useMemo(() => allCategoryPaths(clauses), [clauses]);
+  // Everything starts folded to the top-level branches, like an outline.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(allPaths));
 
-  const toggleGroup = useCallback((group: string) => {
+  const toggleCategory = useCallback((path: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
-      if (next.has(group)) next.delete(group);
-      else next.add(group);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
       return next;
     });
   }, []);
@@ -301,45 +319,45 @@ function GraphInner({
   }
 
   const layout = useMemo(
-    () => buildLayout(clauses, argumentsList, collapsed, toggleGroup),
-    [clauses, argumentsList, collapsed, toggleGroup],
+    () => buildLayout(clauses, argumentsList, collapsed, toggleCategory),
+    [clauses, argumentsList, collapsed, toggleCategory],
   );
 
   const trimmedQuery = query.trim().toLowerCase();
-  const matchingIds = useMemo(() => {
-    if (!trimmedQuery) return [];
-    return clauses.filter((c) => c.text.toLowerCase().includes(trimmedQuery)).map((c) => c.id);
-  }, [clauses, trimmedQuery]);
-
-  // Group names aren't clause text, so they're matched separately.
-  const matchingGroups = useMemo(
-    () => (trimmedQuery ? allGroups.filter((g) => g.toLowerCase().includes(trimmedQuery)) : []),
-    [allGroups, trimmedQuery],
+  const matchingClauses = useMemo(
+    () => (trimmedQuery ? clauses.filter((c) => c.text.toLowerCase().includes(trimmedQuery)) : []),
+    [clauses, trimmedQuery],
+  );
+  // Category names aren't clause text, so they're matched separately.
+  const matchingPaths = useMemo(
+    () => (trimmedQuery ? allPaths.filter((p) => categoryName(p).toLowerCase().includes(trimmedQuery)) : []),
+    [allPaths, trimmedQuery],
   );
 
   const nodes = useMemo(() => {
-    const matches = new Set(matchingIds);
-    const matchedGroups = new Set([
-      ...matchingGroups,
-      ...matchingIds.map((id) => layout.membership.get(id)).filter((g): g is string => !!g),
-    ]);
+    const clauseHits = new Set(matchingClauses.map((c) => c.id));
+    // A hit inside a folded category lights up the node standing in for it.
+    const groupHits = new Set<string>();
+    for (const c of matchingClauses) {
+      const folded = collapsedAncestor(c.category, collapsed);
+      if (folded) groupHits.add(folded);
+    }
+    for (const p of matchingPaths) groupHits.add(collapsedAncestor(p, collapsed) ?? p);
     const state = (hit: boolean) => (!trimmedQuery ? "normal" : hit ? "match" : "dim");
     return [
       ...layout.frames.map((n) =>
-        matchingGroups.includes(n.data.label as string)
-          ? { ...n, style: { ...(n.style as object), borderRadius: 16, boxShadow: "0 0 0 3px #f59e0b" } }
-          : n,
+        groupHits.has(n.data.path) ? { ...n, style: { ...n.style, ...highlightStyle("match", 16) } } : n,
       ),
       ...layout.groupNodes.map((n) => ({
         ...n,
-        style: { ...(n.style as object), ...groupNodeStyle(state(matchedGroups.has(n.data.label as string))) },
+        style: { ...n.style, ...highlightStyle(state(groupHits.has(n.data.path)), 12) },
       })),
       ...layout.clauseNodes.map((n) => ({
         ...n,
-        style: { ...(n.style as object), ...clauseNodeStyle(state(matches.has(n.id)), n.data.accent) },
+        style: { ...n.style, ...clauseNodeStyle(state(clauseHits.has(n.id)), n.data.accent) },
       })),
-    ];
-  }, [layout, matchingIds, matchingGroups, trimmedQuery]);
+    ] as Node[];
+  }, [layout, matchingClauses, matchingPaths, collapsed, trimmedQuery]);
 
   function centerOn(node: Node | undefined) {
     if (!node) return;
@@ -351,26 +369,28 @@ function GraphInner({
     setCenter(node.position.x + width / 2, node.position.y + height / 2, { zoom, duration: 400 });
   }
 
+  // Unfold just enough to reveal the target, then center on it. Layout is
+  // deterministic, so its position can be computed now instead of after re-render.
+  function reveal(next: Set<string>, nodeId: string) {
+    setCollapsed(next);
+    const revealed = buildLayout(clauses, argumentsList, next, toggleCategory);
+    centerOn([...revealed.groupNodes, ...revealed.clauseNodes].find((n) => n.id === nodeId));
+  }
+
   function focusFirstMatch() {
-    const firstGroup = matchingGroups[0];
-    if (firstGroup) {
-      const id = collapsed.has(firstGroup) ? groupNodeId(firstGroup) : clusterId(firstGroup);
-      centerOn(nodes.find((n) => n.id === id));
+    const path = matchingPaths[0];
+    if (path) {
+      const next = new Set(collapsed);
+      for (const p of prefixes(path)) next.delete(p);
+      next.add(path);
+      reveal(next, groupNodeId(path));
       return;
     }
-    const firstId = matchingIds[0];
-    if (!firstId) return;
-    const group = layout.membership.get(firstId);
-    if (group && collapsed.has(group)) {
-      // Layout is deterministic, so the expanded positions can be computed now
-      // rather than waiting for the re-render.
-      const next = new Set(collapsed);
-      next.delete(group);
-      setCollapsed(next);
-      centerOn(buildLayout(clauses, argumentsList, next, toggleGroup).clauseNodes.find((n) => n.id === firstId));
-    } else {
-      centerOn(nodes.find((n) => n.id === firstId));
-    }
+    const clause = matchingClauses[0];
+    if (!clause) return;
+    const next = new Set(collapsed);
+    for (const p of clause.category ? prefixes(clause.category) : []) next.delete(p);
+    reveal(next, clause.id);
   }
 
   const selected = clauses.find((c) => c.id === selectedId) ?? null;
@@ -387,14 +407,14 @@ function GraphInner({
           onKeyDown={(e) => {
             if (e.key === "Enter") focusFirstMatch();
           }}
-          placeholder="Search clauses…"
+          placeholder="Search clauses or categories…"
           className="min-w-0 flex-1 rounded-full border border-black/[.08] px-4 py-2 text-sm dark:border-white/[.145]"
         />
         {trimmedQuery && (
           <p className="shrink-0 text-xs text-zinc-500">
-            {matchingGroups.length > 0 &&
-              `${matchingGroups.length} categor${matchingGroups.length === 1 ? "y" : "ies"}, `}
-            {matchingIds.length} clause{matchingIds.length === 1 ? "" : "s"} — Enter to jump
+            {matchingPaths.length > 0 &&
+              `${matchingPaths.length} categor${matchingPaths.length === 1 ? "y" : "ies"}, `}
+            {matchingClauses.length} clause{matchingClauses.length === 1 ? "" : "s"} — Enter to jump
           </p>
         )}
       </div>
@@ -422,10 +442,10 @@ function GraphInner({
           }}
         >
           <Controls showInteractive={false}>
-            <ControlButton onClick={() => setCollapsed(new Set())} title="Expand all groups" aria-label="Expand all groups">
+            <ControlButton onClick={() => setCollapsed(new Set())} title="Expand all categories" aria-label="Expand all categories">
               <span className="text-base font-bold leading-none">+</span>
             </ControlButton>
-            <ControlButton onClick={() => setCollapsed(new Set(allGroups))} title="Collapse all groups" aria-label="Collapse all groups">
+            <ControlButton onClick={() => setCollapsed(new Set(allPaths))} title="Collapse all categories" aria-label="Collapse all categories">
               <span className="text-base font-bold leading-none">−</span>
             </ControlButton>
             <ControlButton
@@ -441,9 +461,12 @@ function GraphInner({
 
       {selected && (
         <ClauseSupportSidebar
+          key={selected.id}
           id={selected.id}
           text={selected.text}
           support={selected.support}
+          category={selected.category}
+          categories={allPaths}
           onClose={() => setSelectedId(null)}
         />
       )}

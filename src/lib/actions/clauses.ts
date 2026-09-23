@@ -45,21 +45,32 @@ export async function updateClause(id: string, text: string, password: string) {
   });
 }
 
-export async function updateClauseSupport(id: string, support: string, password: string) {
+export async function updateClauseDetails(
+  id: string,
+  support: string,
+  category: string,
+  password: string,
+) {
   return runAction(async () => {
     assertActionPassword(password);
 
     const trimmed = support.trim();
+    const path = category
+      .split("/")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join("/");
 
     const clause = await prisma.clause.findUnique({ where: { id } });
     if (!clause) throw new Error("Clause not found");
 
     const updated = await prisma.clause.update({
       where: { id },
-      data: { support: trimmed || null },
+      data: { support: trimmed || null, category: path || null },
     });
 
     revalidatePath("/clauses");
+    revalidatePath("/");
     return updated;
   });
 }
