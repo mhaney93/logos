@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Logos
 
-## Getting Started
+A structured argument graph. You publish short, reusable **clauses** and compose them into **arguments**. Any argument's conclusion can be a premise in another argument, so the whole thing grows into a directed acyclic graph of logical dependencies.
 
-First, run the development server:
+Live: https://logos-sandy-tau.vercel.app
+
+## Concepts
+
+- **Clause** — one proposition, e.g. "Logic depends on nothing." It can serve as a premise, a conclusion, or both. Each clause has optional **Notes** (summaries, quotes, examples) and a display-only **category** path like `Ethics/Virtues/Love`.
+- **Argument** — ordered premises plus exactly one conclusion. A clause can conclude at most one argument.
+- **Citation** — created automatically when an argument uses another argument's conclusion as a premise.
+
+## Pages
+
+- `/` — the full graph. Every clause is a node, and every argument draws colored edges from its premises to its conclusion. Categories fold and unfold, and search matches both clause text and category names.
+- `/clauses` — list and search clauses. Click one to edit its category and Notes.
+- `/arguments` — build an argument by picking premises in order, then a conclusion. Includes a reference panel of valid argument forms.
+
+## Stack
+
+- Next.js (App Router), TypeScript, Tailwind
+- Postgres (Neon) via Prisma 7 with `@prisma/adapter-pg`
+- `@xyflow/react` + `dagre` for the graph layout
+- Hosted on Vercel
+
+There is no sign-in. The app runs as a single user, and every write is gated by an action password.
+
+## Running locally
+
+1. Install dependencies. This also generates the Prisma client.
+
+   ```bash
+   npm install
+   ```
+
+2. Create `.env` with:
+
+   ```bash
+   DATABASE_URL="postgresql://..."
+   ACTION_PASSWORD="..."
+   ```
+
+3. Apply migrations and start the dev server.
+
+   ```bash
+   npx prisma migrate deploy
+   npm run dev
+   ```
+
+4. Open http://localhost:3000.
+
+## Deploying
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git push
+npx vercel --prod --yes
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
