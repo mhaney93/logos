@@ -81,8 +81,7 @@ export async function createArgument(
       });
     }
 
-    revalidatePath("/arguments");
-    revalidatePath("/clauses");
+    revalidatePath("/");
     return argument;
   });
 }
@@ -157,8 +156,7 @@ export async function updateArgument(
         : []),
     ]);
 
-    revalidatePath("/arguments");
-    revalidatePath("/clauses");
+    revalidatePath("/");
   });
 }
 
@@ -171,8 +169,7 @@ export async function deleteArgument(argumentId: string, password: string) {
 
     await prisma.argument.delete({ where: { id: argumentId } });
 
-    revalidatePath("/arguments");
-    revalidatePath("/clauses");
+    revalidatePath("/");
   });
 }
 

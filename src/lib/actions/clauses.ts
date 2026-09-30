@@ -19,7 +19,7 @@ export async function createClause(text: string, password: string) {
       data: { text: trimmed, authorId: user.id },
     });
 
-    revalidatePath("/clauses");
+    revalidatePath("/");
     return clause;
   });
 }
@@ -39,8 +39,7 @@ export async function updateClause(id: string, text: string, password: string) {
       data: { text: trimmed },
     });
 
-    revalidatePath("/clauses");
-    revalidatePath("/arguments");
+    revalidatePath("/");
     return updated;
   });
 }
@@ -69,7 +68,6 @@ export async function updateClauseDetails(
       data: { support: trimmed || null, category: path || null },
     });
 
-    revalidatePath("/clauses");
     revalidatePath("/");
     return updated;
   });
@@ -93,8 +91,7 @@ export async function deleteClause(id: string, password: string) {
 
     await prisma.clause.delete({ where: { id } });
 
-    revalidatePath("/clauses");
-    revalidatePath("/arguments");
+    revalidatePath("/");
   });
 }
 

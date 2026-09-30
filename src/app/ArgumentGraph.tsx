@@ -16,7 +16,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
-import { ClauseSupportSidebar } from "./clauses/ClauseSupportSidebar";
+import { ClauseSupportSidebar } from "./ClauseSupportSidebar";
 import { NoteBadges } from "./components/NoteBadges";
 import { noteKinds, type NoteKind } from "@/lib/notes";
 import {
@@ -315,7 +315,9 @@ function buildLayout(
   return { frames, groupNodes, clauseNodes, edges };
 }
 
-function clauseNodeStyle(matchState: "match" | "dim" | "normal", accent?: string) {
+type MatchState = "match" | "premise" | "dim" | "normal";
+
+function clauseNodeStyle(matchState: MatchState, accent?: string) {
   const base = {
     padding: 10,
     borderRadius: 10,
@@ -327,6 +329,7 @@ function clauseNodeStyle(matchState: "match" | "dim" | "normal", accent?: string
   if (matchState === "match") {
     return { ...base, border: "2px solid #f59e0b", boxShadow: "0 0 0 3px rgba(245,158,11,0.25)" };
   }
+  if (matchState === "premise") return { ...base, border: "2px dashed #f59e0b" };
   return {
     ...base,
     border: accent ? `2px solid ${accent}` : "1px solid color-mix(in srgb, currentColor 15%, transparent)",
@@ -334,7 +337,7 @@ function clauseNodeStyle(matchState: "match" | "dim" | "normal", accent?: string
   };
 }
 
-function highlightStyle(matchState: "match" | "dim" | "normal", radius: number) {
+function highlightStyle(matchState: MatchState, radius: number) {
   if (matchState === "match") return { borderRadius: radius, boxShadow: "0 0 0 3px #f59e0b" };
   return { opacity: matchState === "dim" ? 0.3 : 1 };
 }
@@ -407,6 +410,29 @@ function GraphInner({
     () => (trimmedQuery ? clauses.filter((c) => c.text.toLowerCase().includes(trimmedQuery)) : []),
     [clauses, trimmedQuery],
   );
+  const premisesOf = useMemo(
+    () => new Map(argumentsList.map((a) => [a.conclusionId, a.premises.map((p) => p.clauseId)])),
+    [argumentsList],
+  );
+  // Every clause a match rests on: its argument's premises, their premises, and so on.
+  const premiseChain = useCallback(
+    (ids: string[]) => {
+      const seen = new Set<string>();
+      const stack = ids.flatMap((id) => premisesOf.get(id) ?? []);
+      while (stack.length > 0) {
+        const id = stack.pop()!;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        stack.push(...(premisesOf.get(id) ?? []));
+      }
+      return seen;
+    },
+    [premisesOf],
+  );
+  const matchingPremises = useMemo(
+    () => premiseChain(matchingClauses.map((c) => c.id)),
+    [premiseChain, matchingClauses],
+  );
   // Category names aren't clause text, so they're matched separately.
   const matchingPaths = useMemo(
     () => (trimmedQuery ? allPaths.filter((p) => categoryName(p).toLowerCase().includes(trimmedQuery)) : []),
@@ -417,12 +443,14 @@ function GraphInner({
     const clauseHits = new Set(matchingClauses.map((c) => c.id));
     // A hit inside a folded category lights up the node standing in for it.
     const groupHits = new Set<string>();
-    for (const c of matchingClauses) {
+    for (const c of clauses.filter((c) => clauseHits.has(c.id) || matchingPremises.has(c.id))) {
       const folded = collapsedAncestor(c.category, collapsed);
       if (folded) groupHits.add(folded);
     }
     for (const p of matchingPaths) groupHits.add(collapsedAncestor(p, collapsed) ?? p);
-    const state = (hit: boolean) => (!trimmedQuery ? "normal" : hit ? "match" : "dim");
+    const state = (hit: boolean): MatchState => (!trimmedQuery ? "normal" : hit ? "match" : "dim");
+    const clauseState = (id: string): MatchState =>
+      matchingPremises.has(id) && !clauseHits.has(id) ? "premise" : state(clauseHits.has(id));
     return [
       ...layout.frames.map((n) =>
         groupHits.has(n.data.path) ? { ...n, style: { ...n.style, ...highlightStyle("match", 16) } } : n,
@@ -433,10 +461,10 @@ function GraphInner({
       })),
       ...layout.clauseNodes.map((n) => ({
         ...n,
-        style: { ...n.style, ...clauseNodeStyle(state(clauseHits.has(n.id)), n.data.accent) },
+        style: { ...n.style, ...clauseNodeStyle(clauseState(n.id), n.data.accent) },
       })),
     ] as Node[];
-  }, [layout, matchingClauses, matchingPaths, collapsed, trimmedQuery]);
+  }, [layout, clauses, matchingClauses, matchingPremises, matchingPaths, collapsed, trimmedQuery]);
 
   function centerOn(node: Node | undefined) {
     if (!node) return;
@@ -467,8 +495,12 @@ function GraphInner({
     }
     const clause = matchingClauses[0];
     if (!clause) return;
+    // Unfold the clause and everything it rests on, but keep the camera on the clause.
     const next = new Set(collapsed);
-    for (const p of clause.category ? prefixes(clause.category) : []) next.delete(p);
+    const chainIds = premiseChain([clause.id]);
+    for (const c of clauses.filter((c) => c.id === clause.id || chainIds.has(c.id))) {
+      for (const p of c.category ? prefixes(c.category) : []) next.delete(p);
+    }
     reveal(next, clause.id);
   }
 

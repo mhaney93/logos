@@ -6,14 +6,6 @@ export function Nav() {
       <Link href="/" className="text-lg font-semibold">
         Logos
       </Link>
-      <div className="flex items-center gap-4">
-        <Link href="/clauses" className="text-sm font-medium">
-          Clauses
-        </Link>
-        <Link href="/arguments" className="text-sm font-medium">
-          Arguments
-        </Link>
-      </div>
     </header>
   );
 }

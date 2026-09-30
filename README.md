@@ -10,11 +10,9 @@ Live: https://logos-sandy-tau.vercel.app
 - **Argument** — ordered premises plus exactly one conclusion. A clause can conclude at most one argument.
 - **Citation** — created automatically when an argument uses another argument's conclusion as a premise.
 
-## Pages
+## The map
 
-- `/` — the full graph. Every clause is a node, and every argument draws colored edges from its premises to its conclusion. Categories fold and unfold, and search matches both clause text and category names.
-- `/clauses` — list and search clauses. Click one to edit its category and Notes.
-- `/arguments` — build an argument by picking premises in order, then a conclusion. Includes a reference panel of valid argument forms.
+The app is a single page, `/`, showing the full graph. Every clause is a node, and every argument draws colored edges from its premises to its conclusion. Categories fold and unfold. Search matches clause text and category names, and it also highlights and unfolds every premise that leads to a matching clause. Click a clause to see its category and edit its Notes.
 
 ## Stack
 
