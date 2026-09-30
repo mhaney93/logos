@@ -538,7 +538,6 @@ function GraphInner({
           text={selected.text}
           support={selected.support}
           category={selected.category}
-          categories={allPaths}
           onClose={() => setSelectedId(null)}
         />
       )}
