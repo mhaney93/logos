@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ClauseItem } from "./ClauseItem";
 import { ClauseSupportSidebar } from "./ClauseSupportSidebar";
+import { noteKinds } from "@/lib/notes";
 
 export function ClauseList({
   clauses,
@@ -32,6 +33,7 @@ export function ClauseList({
             key={clause.id}
             id={clause.id}
             text={clause.text}
+            notes={noteKinds(clause.support)}
             onSelect={() => setSelectedId(clause.id)}
           />
         ))}

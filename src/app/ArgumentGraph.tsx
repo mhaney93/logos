@@ -17,6 +17,8 @@ import {
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import { ClauseSupportSidebar } from "./clauses/ClauseSupportSidebar";
+import { NoteBadges } from "./components/NoteBadges";
+import { noteKinds, type NoteKind } from "@/lib/notes";
 import {
   allCategoryPaths,
   categoryName,
@@ -43,7 +45,7 @@ function estimateClauseHeight(text: string) {
   return Math.max(CLAUSE_MIN_HEIGHT, CLAUSE_PADDING + lines * CLAUSE_LINE_HEIGHT);
 }
 
-type ClauseNodeData = { label: string; accent?: string };
+type ClauseNodeData = { label: string; accent?: string; notes: NoteKind[] };
 type GroupNodeData = { path: string; count: number; accent: string; onToggle: () => void };
 type FrameNodeData = { path: string; accent: string; onToggle: () => void };
 
@@ -52,6 +54,7 @@ function ClauseNode({ data }: NodeProps<Node<ClauseNodeData>>) {
     <>
       <Handle type="target" position={Position.Top} />
       <span className="nodrag nopan clause-node-text">{data.label}</span>
+      <NoteBadges kinds={data.notes} className="absolute -top-2 right-2" />
       <Handle type="source" position={Position.Bottom} />
     </>
   );
@@ -298,7 +301,11 @@ function buildLayout(
       id: clause.id,
       type: "clause",
       position: { x: pos.x - CLAUSE_WIDTH / 2, y: pos.y - height / 2 },
-      data: { label: clause.text, accent: clause.category ? color.get(clause.category) : undefined },
+      data: {
+        label: clause.text,
+        accent: clause.category ? color.get(clause.category) : undefined,
+        notes: noteKinds(clause.support),
+      },
       // RF sets pointer-events: none on nodes when nothing RF-interactive
       // (drag/connect/select) is enabled — re-enable so text is clickable.
       style: { width: CLAUSE_WIDTH, minHeight: height, pointerEvents: "auto" as const },

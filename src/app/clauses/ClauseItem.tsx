@@ -4,14 +4,18 @@ import { useState, useTransition } from "react";
 import { deleteClause, updateClause } from "@/lib/actions/clauses";
 import { getActionPassword, unwrapActionResult } from "@/lib/clientPassword";
 import { ConfirmDialog } from "@/app/components/ConfirmDialog";
+import { NoteBadges } from "@/app/components/NoteBadges";
+import type { NoteKind } from "@/lib/notes";
 
 export function ClauseItem({
   id,
   text,
+  notes,
   onSelect,
 }: {
   id: string;
   text: string;
+  notes: NoteKind[];
   onSelect: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -79,7 +83,10 @@ export function ClauseItem({
       onClick={onSelect}
       className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-black/[.08] px-4 py-3 hover:border-black/[.16] dark:border-white/[.145] dark:hover:border-white/[.25]"
     >
-      <p>{text}</p>
+      <p>
+        {text}
+        <NoteBadges kinds={notes} className="ml-2 inline-flex align-middle" />
+      </p>
       <div className="flex shrink-0 gap-3 text-xs font-medium">
         <button
           onClick={(e) => {
