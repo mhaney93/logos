@@ -351,6 +351,7 @@ function GraphInner({
 }) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [boldEdgeId, setBoldEdgeId] = useState<string | null>(null);
   const { setCenter, fitView, getViewport, setViewport } = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -403,6 +404,16 @@ function GraphInner({
   const layout = useMemo(
     () => buildLayout(clauses, argumentsList, collapsed, toggleCategory),
     [clauses, argumentsList, collapsed, toggleCategory],
+  );
+
+  const edges = useMemo(
+    () =>
+      layout.edges.map((e) =>
+        e.id === boldEdgeId
+          ? { ...e, zIndex: 1000, style: { ...e.style, strokeWidth: 6, opacity: 1 } }
+          : e,
+      ),
+    [layout.edges, boldEdgeId],
   );
 
   const trimmedQuery = query.trim().toLowerCase();
@@ -535,7 +546,7 @@ function GraphInner({
         <ReactFlow
           className="!absolute inset-0"
           nodes={nodes}
-          edges={layout.edges}
+          edges={edges}
           nodeTypes={nodeTypes}
           fitView
           minZoom={0.05}
@@ -545,6 +556,7 @@ function GraphInner({
           panOnDrag={[1, 2]}
           selectionOnDrag={false}
           proOptions={{ hideAttribution: true }}
+          onEdgeClick={(_, edge) => setBoldEdgeId((id) => (id === edge.id ? null : edge.id))}
           onNodeClick={(_, node) => {
             if (node.type !== "clause") return;
             // Skip if the click was the tail end of a text-selection drag.
