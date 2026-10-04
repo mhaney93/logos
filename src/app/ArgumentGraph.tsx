@@ -448,16 +448,18 @@ function GraphInner({
     [view, collapsed, changeViewAround],
   );
 
-  // Opening a chain opens it all the way up, unfolding any category it passes through.
-  // Closing one closes everything above it, so reopening starts from a clean slate.
+  // A dot opens one level of premises; a search match opens its whole chain. Either
+  // way, any category the newly shown clauses sit in unfolds. Closing a clause closes
+  // everything above it, so reopening starts from a clean slate.
   const openChain = useCallback(
-    (v: GraphView, id: string) => {
-      const chain = premiseChain([id], premisesOf);
+    (v: GraphView, id: string, wholeChain: boolean) => {
+      const opening = wholeChain ? [id, ...premiseChain([id], premisesOf)] : [id];
+      const revealed = new Set([...opening, ...opening.flatMap((c) => premisesOf.get(c) ?? [])]);
       const unfolded = new Set(v.collapsed);
-      for (const c of clauses.filter((c) => c.id === id || chain.has(c.id))) {
+      for (const c of clauses.filter((c) => revealed.has(c.id))) {
         for (const p of c.category ? prefixes(c.category) : []) unfolded.delete(p);
       }
-      return { ...v, collapsed: unfolded, open: new Set([...v.open, id, ...chain]) };
+      return { ...v, collapsed: unfolded, open: new Set([...v.open, ...opening]) };
     },
     [clauses, premisesOf],
   );
@@ -469,7 +471,7 @@ function GraphInner({
         const closing = new Set([id, ...premiseChain([id], premisesOf)]);
         next = { ...view, open: new Set([...view.open].filter((c) => !closing.has(c))) };
       } else {
-        next = openChain(view, id);
+        next = openChain(view, id, false);
       }
       changeViewAround(next, id, id);
     },
@@ -577,7 +579,7 @@ function GraphInner({
     const clause = matchingClauses[0];
     if (!clause) return;
     // Open the clause's whole chain, but keep the camera on the clause.
-    const next = openChain(view, clause.id);
+    const next = openChain(view, clause.id, true);
     reveal({ ...next, pinned: new Set([...view.pinned, clause.id]) }, clause.id);
   }
 
