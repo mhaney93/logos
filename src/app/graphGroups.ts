@@ -80,3 +80,58 @@ export function collapseCategories(
 
   return { clauses: visibleClauses, foldedPaths: [...foldedPaths].sort(), arguments: visibleArguments };
 }
+
+export type GraphView = {
+  collapsed: Set<string>;
+  // Conclusions whose premises are on show.
+  open: Set<string>;
+  // Clauses shown even though they aren't final, e.g. a search match.
+  pinned: Set<string>;
+};
+
+export function premisesByConclusion(argumentsList: ArgumentData[]) {
+  return new Map(argumentsList.map((a) => [a.conclusionId, a.premises.map((p) => p.clauseId)]));
+}
+
+// Every clause the given clauses rest on: their premises, those premises' premises, and so on.
+export function premiseChain(ids: Iterable<string>, premisesOf: Map<string, string[]>) {
+  const seen = new Set<string>();
+  const stack = [...ids].flatMap((id) => premisesOf.get(id) ?? []);
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    stack.push(...(premisesOf.get(id) ?? []));
+  }
+  return seen;
+}
+
+// An open category shows only its final conclusions — clauses no argument in the
+// same category uses as a premise — plus whatever chains have been opened from them.
+// Clauses in folded categories all stay so their category's node still appears.
+export function visibleChains(clauses: ClauseData[], argumentsList: ArgumentData[], view: GraphView) {
+  const categoryOf = new Map(clauses.map((c) => [c.id, c.category]));
+  const premisesOf = premisesByConclusion(argumentsList);
+  const usedInOwnCategory = new Set<string>();
+  for (const argument of argumentsList) {
+    for (const p of argument.premises) {
+      if (categoryOf.get(p.clauseId) === categoryOf.get(argument.conclusionId)) usedInOwnCategory.add(p.clauseId);
+    }
+  }
+
+  const shown = new Set<string>();
+  const stack = clauses
+    .filter((c) => (!usedInOwnCategory.has(c.id) || view.pinned.has(c.id)) && !collapsedAncestor(c.category, view.collapsed))
+    .map((c) => c.id);
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    if (shown.has(id)) continue;
+    shown.add(id);
+    if (view.open.has(id)) stack.push(...(premisesOf.get(id) ?? []));
+  }
+
+  return {
+    clauses: clauses.filter((c) => shown.has(c.id) || collapsedAncestor(c.category, view.collapsed)),
+    arguments: argumentsList.filter((a) => shown.has(a.conclusionId) && view.open.has(a.conclusionId)),
+  };
+}

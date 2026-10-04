@@ -7,6 +7,7 @@ import {
   Controls,
   Handle,
   MarkerType,
+  Panel,
   Position,
   ReactFlowProvider,
   useReactFlow,
@@ -28,9 +29,13 @@ import {
   collapsedAncestor,
   groupNodeId,
   parentPath,
+  premiseChain,
+  premisesByConclusion,
   prefixes,
+  visibleChains,
   type ArgumentData,
   type ClauseData,
+  type GraphView,
 } from "./graphGroups";
 
 const CLAUSE_WIDTH = 240;
@@ -45,7 +50,14 @@ function estimateClauseHeight(text: string) {
   return Math.max(CLAUSE_MIN_HEIGHT, CLAUSE_PADDING + lines * CLAUSE_LINE_HEIGHT);
 }
 
-type ClauseNodeData = { label: string; accent?: string; notes: NoteKind[] };
+type ClauseNodeData = {
+  label: string;
+  accent?: string;
+  notes: NoteKind[];
+  hasPremises: boolean;
+  open: boolean;
+  onToggleChain: () => void;
+};
 type GroupNodeData = { path: string; count: number; accent: string; onToggle: () => void };
 type FrameNodeData = { path: string; accent: string; onToggle: () => void };
 
@@ -53,6 +65,24 @@ function ClauseNode({ data }: NodeProps<Node<ClauseNodeData>>) {
   return (
     <>
       <Handle type="target" position={Position.Top} />
+      {data.hasPremises && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            data.onToggleChain();
+          }}
+          title={data.open ? "Hide premises" : "Show premises"}
+          aria-label={data.open ? "Hide premises" : "Show premises"}
+          className="nodrag nopan absolute -top-2 left-1/2 z-10 h-4 w-4 -translate-x-1/2 cursor-pointer"
+          style={{ pointerEvents: "auto" }}
+        >
+          {/* SVG fill, unlike a CSS background, survives dark-mode extensions recoloring it. */}
+          <svg viewBox="0 0 16 16" className="h-full w-full">
+            <circle cx="8" cy="8" r="6.5" strokeWidth="2" stroke="currentColor" fill={data.open ? "currentColor" : "var(--background)"} />
+          </svg>
+        </button>
+      )}
       <span className="nodrag nopan clause-node-text">{data.label}</span>
       <NoteBadges kinds={data.notes} className="absolute -top-2 right-2" />
       <Handle type="source" position={Position.Bottom} />
@@ -204,16 +234,22 @@ function arrangeCategories(
 function buildLayout(
   allClauses: ClauseData[],
   allArguments: ArgumentData[],
-  collapsed: Set<string>,
+  view: GraphView,
   toggleCategory: (path: string) => void,
+  toggleChain: (id: string) => void,
 ) {
   const paths = allCategoryPaths(allClauses);
   const color = new Map(paths.map((p, i) => [p, hueColor(i + 3)]));
   const counts = clauseCounts(allClauses);
+  const premisesOf = premisesByConclusion(allArguments);
+  // allArguments is newest-first; count from the oldest so adding an argument,
+  // or opening a chain, doesn't recolor the existing ones.
+  const argumentColor = new Map(allArguments.map((a, i) => [a.id, hueColor(allArguments.length - 1 - i)]));
+  const shown = visibleChains(allClauses, allArguments, view);
   const { clauses, foldedPaths, arguments: argumentsList } = collapseCategories(
-    allClauses,
-    allArguments,
-    collapsed,
+    shown.clauses,
+    shown.arguments,
+    view.collapsed,
   );
 
   // Every open category that still contains something visible gets a frame.
@@ -247,10 +283,8 @@ function buildLayout(
 
   const edgeKeys = new Set<string>();
   const edges: Edge[] = [];
-  argumentsList.forEach((argument, index) => {
-    // argumentsList is newest-first; count from the oldest so adding an
-    // argument doesn't recolor the existing ones.
-    const edgeColor = hueColor(argumentsList.length - 1 - index);
+  argumentsList.forEach((argument) => {
+    const edgeColor = argumentColor.get(argument.id)!;
     for (const premise of argument.premises) {
       const key = `${premise.clauseId}->${argument.conclusionId}`;
       if (edgeKeys.has(key)) continue;
@@ -305,6 +339,9 @@ function buildLayout(
         label: clause.text,
         accent: clause.category ? color.get(clause.category) : undefined,
         notes: noteKinds(clause.support),
+        hasPremises: premisesOf.has(clause.id),
+        open: view.open.has(clause.id),
+        onToggleChain: () => toggleChain(clause.id),
       },
       // RF sets pointer-events: none on nodes when nothing RF-interactive
       // (drag/connect/select) is enabled — re-enable so text is clickable.
@@ -357,33 +394,86 @@ function GraphInner({
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const allPaths = useMemo(() => allCategoryPaths(clauses), [clauses]);
-  // Everything starts folded to the top-level branches, like an outline.
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(allPaths));
+  const premisesOf = useMemo(() => premisesByConclusion(argumentsList), [argumentsList]);
+  // Home: everything folded to the top-level branches, like an outline.
+  const homeView = useCallback(
+    (): GraphView => ({ collapsed: new Set(allPaths), open: new Set(), pinned: new Set() }),
+    [allPaths],
+  );
+  const [view, setView] = useState<GraphView>(homeView);
+  const { collapsed } = view;
+  const showingAll = collapsed.size === 0 && [...premisesOf.keys()].every((id) => view.open.has(id));
+
+  function toggleShowAll() {
+    setView(showingAll ? homeView() : { collapsed: new Set(), open: new Set(premisesOf.keys()), pinned: new Set() });
+    requestAnimationFrame(() => fitView());
+  }
+
+  const nodeIn = useCallback(
+    (v: GraphView, id: string) => {
+      const { frames, groupNodes, clauseNodes } = buildLayout(clauses, argumentsList, v, () => {}, () => {});
+      return [...frames, ...groupNodes, ...clauseNodes].find((n) => n.id === id);
+    },
+    [clauses, argumentsList],
+  );
 
   // Relayout moves everything, so shift the camera by however far the clicked
-  // category moved: it stays put on screen and its neighbors make room around it.
+  // node moved: it stays put on screen and its neighbors make room around it.
+  const changeViewAround = useCallback(
+    (next: GraphView, idBefore: string, idAfter: string) => {
+      const anchor = (v: GraphView, id: string) => {
+        const node = nodeIn(v, id);
+        if (!node) return null;
+        return { x: node.position.x + Number(node.style?.width ?? CLAUSE_WIDTH) / 2, y: node.position.y };
+      };
+      const before = anchor(view, idBefore);
+      const after = anchor(next, idAfter);
+      if (before && after) {
+        const { x, y, zoom } = getViewport();
+        setViewport({ x: x - (after.x - before.x) * zoom, y: y - (after.y - before.y) * zoom, zoom });
+      }
+      setView(next);
+    },
+    [view, nodeIn, getViewport, setViewport],
+  );
+
   const toggleCategory = useCallback(
     (path: string) => {
       const next = new Set(collapsed);
       if (next.has(path)) next.delete(path);
       else next.add(path);
-
-      const anchor = (folded: Set<string>) => {
-        const { frames, groupNodes } = buildLayout(clauses, argumentsList, folded, () => {});
-        const id = folded.has(path) ? groupNodeId(path) : clusterId(path);
-        const node = [...frames, ...groupNodes].find((n) => n.id === id);
-        if (!node) return null;
-        return { x: node.position.x + Number(node.style?.width ?? CLAUSE_WIDTH) / 2, y: node.position.y };
-      };
-      const before = anchor(collapsed);
-      const after = anchor(next);
-      if (before && after) {
-        const { x, y, zoom } = getViewport();
-        setViewport({ x: x - (after.x - before.x) * zoom, y: y - (after.y - before.y) * zoom, zoom });
-      }
-      setCollapsed(next);
+      const idFor = (folded: Set<string>) => (folded.has(path) ? groupNodeId(path) : clusterId(path));
+      changeViewAround({ ...view, collapsed: next }, idFor(collapsed), idFor(next));
     },
-    [collapsed, clauses, argumentsList, getViewport, setViewport],
+    [view, collapsed, changeViewAround],
+  );
+
+  // Opening a chain opens it all the way up, unfolding any category it passes through.
+  // Closing one closes everything above it, so reopening starts from a clean slate.
+  const openChain = useCallback(
+    (v: GraphView, id: string) => {
+      const chain = premiseChain([id], premisesOf);
+      const unfolded = new Set(v.collapsed);
+      for (const c of clauses.filter((c) => c.id === id || chain.has(c.id))) {
+        for (const p of c.category ? prefixes(c.category) : []) unfolded.delete(p);
+      }
+      return { ...v, collapsed: unfolded, open: new Set([...v.open, id, ...chain]) };
+    },
+    [clauses, premisesOf],
+  );
+
+  const toggleChain = useCallback(
+    (id: string) => {
+      let next: GraphView;
+      if (view.open.has(id)) {
+        const closing = new Set([id, ...premiseChain([id], premisesOf)]);
+        next = { ...view, open: new Set([...view.open].filter((c) => !closing.has(c))) };
+      } else {
+        next = openChain(view, id);
+      }
+      changeViewAround(next, id, id);
+    },
+    [view, premisesOf, openChain, changeViewAround],
   );
 
   useEffect(() => {
@@ -402,8 +492,8 @@ function GraphInner({
   }
 
   const layout = useMemo(
-    () => buildLayout(clauses, argumentsList, collapsed, toggleCategory),
-    [clauses, argumentsList, collapsed, toggleCategory],
+    () => buildLayout(clauses, argumentsList, view, toggleCategory, toggleChain),
+    [clauses, argumentsList, view, toggleCategory, toggleChain],
   );
 
   const edges = useMemo(
@@ -421,28 +511,9 @@ function GraphInner({
     () => (trimmedQuery ? clauses.filter((c) => c.text.toLowerCase().includes(trimmedQuery)) : []),
     [clauses, trimmedQuery],
   );
-  const premisesOf = useMemo(
-    () => new Map(argumentsList.map((a) => [a.conclusionId, a.premises.map((p) => p.clauseId)])),
-    [argumentsList],
-  );
-  // Every clause a match rests on: its argument's premises, their premises, and so on.
-  const premiseChain = useCallback(
-    (ids: string[]) => {
-      const seen = new Set<string>();
-      const stack = ids.flatMap((id) => premisesOf.get(id) ?? []);
-      while (stack.length > 0) {
-        const id = stack.pop()!;
-        if (seen.has(id)) continue;
-        seen.add(id);
-        stack.push(...(premisesOf.get(id) ?? []));
-      }
-      return seen;
-    },
-    [premisesOf],
-  );
   const matchingPremises = useMemo(
-    () => premiseChain(matchingClauses.map((c) => c.id)),
-    [premiseChain, matchingClauses],
+    () => premiseChain(matchingClauses.map((c) => c.id), premisesOf),
+    [premisesOf, matchingClauses],
   );
   // Category names aren't clause text, so they're matched separately.
   const matchingPaths = useMemo(
@@ -489,10 +560,9 @@ function GraphInner({
 
   // Unfold just enough to reveal the target, then center on it. Layout is
   // deterministic, so its position can be computed now instead of after re-render.
-  function reveal(next: Set<string>, nodeId: string) {
-    setCollapsed(next);
-    const revealed = buildLayout(clauses, argumentsList, next, () => {});
-    centerOn([...revealed.groupNodes, ...revealed.clauseNodes].find((n) => n.id === nodeId));
+  function reveal(next: GraphView, nodeId: string) {
+    setView(next);
+    centerOn(nodeIn(next, nodeId));
   }
 
   function focusFirstMatch() {
@@ -501,18 +571,14 @@ function GraphInner({
       const next = new Set(collapsed);
       for (const p of prefixes(path)) next.delete(p);
       next.add(path);
-      reveal(next, groupNodeId(path));
+      reveal({ ...view, collapsed: next }, groupNodeId(path));
       return;
     }
     const clause = matchingClauses[0];
     if (!clause) return;
-    // Unfold the clause and everything it rests on, but keep the camera on the clause.
-    const next = new Set(collapsed);
-    const chainIds = premiseChain([clause.id]);
-    for (const c of clauses.filter((c) => c.id === clause.id || chainIds.has(c.id))) {
-      for (const p of c.category ? prefixes(c.category) : []) next.delete(p);
-    }
-    reveal(next, clause.id);
+    // Open the clause's whole chain, but keep the camera on the clause.
+    const next = openChain(view, clause.id);
+    reveal({ ...next, pinned: new Set([...view.pinned, clause.id]) }, clause.id);
   }
 
   const selected = clauses.find((c) => c.id === selectedId) ?? null;
@@ -565,12 +631,6 @@ function GraphInner({
           }}
         >
           <Controls showInteractive={false}>
-            <ControlButton onClick={() => setCollapsed(new Set())} title="Expand all categories" aria-label="Expand all categories">
-              <span className="text-base font-bold leading-none">+</span>
-            </ControlButton>
-            <ControlButton onClick={() => setCollapsed(new Set(allPaths))} title="Collapse all categories" aria-label="Collapse all categories">
-              <span className="text-base font-bold leading-none">−</span>
-            </ControlButton>
             <ControlButton
               onClick={toggleFullscreen}
               title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
@@ -579,6 +639,15 @@ function GraphInner({
               <FullscreenIcon exit={isFullscreen} />
             </ControlButton>
           </Controls>
+          <Panel position="top-right">
+            <button
+              type="button"
+              onClick={toggleShowAll}
+              className="rounded-full border border-black/[.08] bg-background px-3 py-1 text-xs font-semibold shadow-sm dark:border-white/[.145]"
+            >
+              {showingAll ? "Back to home" : "Expand all"}
+            </button>
+          </Panel>
         </ReactFlow>
       </div>
 
