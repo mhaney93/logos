@@ -87,13 +87,24 @@ export type GraphView = {
   open: Set<string>;
   // Clauses shown even though they aren't final, e.g. a search match.
   pinned: Set<string>;
+  // Premises whose conclusions are on show.
+  below: Set<string>;
 };
 
 export function premisesByConclusion(argumentsList: ArgumentData[]) {
   return new Map(argumentsList.map((a) => [a.conclusionId, a.premises.map((p) => p.clauseId)]));
 }
 
+export function conclusionsByPremise(argumentsList: ArgumentData[]) {
+  const conclusionsOf = new Map<string, string[]>();
+  for (const a of argumentsList) {
+    for (const p of a.premises) conclusionsOf.set(p.clauseId, [...(conclusionsOf.get(p.clauseId) ?? []), a.conclusionId]);
+  }
+  return conclusionsOf;
+}
+
 // Every clause the given clauses rest on: their premises, those premises' premises, and so on.
+// Passing conclusionsByPremise instead walks the other way, to everything built on them.
 export function premiseChain(ids: Iterable<string>, premisesOf: Map<string, string[]>) {
   const seen = new Set<string>();
   const stack = [...ids].flatMap((id) => premisesOf.get(id) ?? []);

@@ -26,6 +26,7 @@ import {
   clauseCounts,
   clusterId,
   collapseCategories,
+  conclusionsByPremise,
   collapsedAncestor,
   groupNodeId,
   parentPath,
@@ -57,34 +58,56 @@ type ClauseNodeData = {
   hasPremises: boolean;
   open: boolean;
   onToggleChain: () => void;
+  hasConclusions: boolean;
+  below: boolean;
+  onToggleBelow: () => void;
 };
 type GroupNodeData = { path: string; count: number; accent: string; onToggle: () => void };
 type FrameNodeData = { path: string; accent: string; onToggle: () => void };
+
+function ChainDot({ filled, label, onClick, className }: { filled: boolean; label: string; onClick: () => void; className: string }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      title={label}
+      aria-label={label}
+      className={`nodrag nopan absolute left-1/2 z-10 h-4 w-4 -translate-x-1/2 cursor-pointer ${className}`}
+      style={{ pointerEvents: "auto" }}
+    >
+      {/* SVG fill, unlike a CSS background, survives dark-mode extensions recoloring it. */}
+      <svg viewBox="0 0 16 16" className="h-full w-full">
+        <circle cx="8" cy="8" r="6.5" strokeWidth="2" stroke="currentColor" fill={filled ? "currentColor" : "var(--background)"} />
+      </svg>
+    </button>
+  );
+}
 
 function ClauseNode({ data }: NodeProps<Node<ClauseNodeData>>) {
   return (
     <>
       <Handle type="target" position={Position.Top} />
       {data.hasPremises && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            data.onToggleChain();
-          }}
-          title={data.open ? "Hide premises" : "Show premises"}
-          aria-label={data.open ? "Hide premises" : "Show premises"}
-          className="nodrag nopan absolute -top-2 left-1/2 z-10 h-4 w-4 -translate-x-1/2 cursor-pointer"
-          style={{ pointerEvents: "auto" }}
-        >
-          {/* SVG fill, unlike a CSS background, survives dark-mode extensions recoloring it. */}
-          <svg viewBox="0 0 16 16" className="h-full w-full">
-            <circle cx="8" cy="8" r="6.5" strokeWidth="2" stroke="currentColor" fill={data.open ? "currentColor" : "var(--background)"} />
-          </svg>
-        </button>
+        <ChainDot
+          filled={data.open}
+          label={data.open ? "Hide premises" : "Show premises"}
+          onClick={data.onToggleChain}
+          className="-top-2"
+        />
       )}
       <span className="nodrag nopan clause-node-text">{data.label}</span>
       <NoteBadges kinds={data.notes} className="absolute -top-2 right-2" />
+      {data.hasConclusions && (
+        <ChainDot
+          filled={data.below}
+          label={data.below ? "Hide conclusions" : "Show conclusions"}
+          onClick={data.onToggleBelow}
+          className="-bottom-2"
+        />
+      )}
       <Handle type="source" position={Position.Bottom} />
     </>
   );
@@ -237,11 +260,13 @@ function buildLayout(
   view: GraphView,
   toggleCategory: (path: string) => void,
   toggleChain: (id: string) => void,
+  toggleBelow: (id: string) => void,
 ) {
   const paths = allCategoryPaths(allClauses);
   const color = new Map(paths.map((p, i) => [p, hueColor(i + 3)]));
   const counts = clauseCounts(allClauses);
   const premisesOf = premisesByConclusion(allArguments);
+  const conclusionsOf = conclusionsByPremise(allArguments);
   // allArguments is newest-first; count from the oldest so adding an argument,
   // or opening a chain, doesn't recolor the existing ones.
   const argumentColor = new Map(allArguments.map((a, i) => [a.id, hueColor(allArguments.length - 1 - i)]));
@@ -342,6 +367,9 @@ function buildLayout(
         hasPremises: premisesOf.has(clause.id),
         open: view.open.has(clause.id),
         onToggleChain: () => toggleChain(clause.id),
+        hasConclusions: conclusionsOf.has(clause.id),
+        below: view.below.has(clause.id),
+        onToggleBelow: () => toggleBelow(clause.id),
       },
       // RF sets pointer-events: none on nodes when nothing RF-interactive
       // (drag/connect/select) is enabled — re-enable so text is clickable.
@@ -395,9 +423,10 @@ function GraphInner({
 
   const allPaths = useMemo(() => allCategoryPaths(clauses), [clauses]);
   const premisesOf = useMemo(() => premisesByConclusion(argumentsList), [argumentsList]);
+  const conclusionsOf = useMemo(() => conclusionsByPremise(argumentsList), [argumentsList]);
   // Home: everything folded to the top-level branches, like an outline.
   const homeView = useCallback(
-    (): GraphView => ({ collapsed: new Set(allPaths), open: new Set(), pinned: new Set() }),
+    (): GraphView => ({ collapsed: new Set(allPaths), open: new Set(), pinned: new Set(), below: new Set() }),
     [allPaths],
   );
   const [view, setView] = useState<GraphView>(homeView);
@@ -405,13 +434,17 @@ function GraphInner({
   const showingAll = collapsed.size === 0 && [...premisesOf.keys()].every((id) => view.open.has(id));
 
   function toggleShowAll() {
-    setView(showingAll ? homeView() : { collapsed: new Set(), open: new Set(premisesOf.keys()), pinned: new Set() });
+    setView(
+      showingAll
+        ? homeView()
+        : { collapsed: new Set(), open: new Set(premisesOf.keys()), pinned: new Set(), below: new Set(conclusionsOf.keys()) },
+    );
     requestAnimationFrame(() => fitView());
   }
 
   const nodeIn = useCallback(
     (v: GraphView, id: string) => {
-      const { frames, groupNodes, clauseNodes } = buildLayout(clauses, argumentsList, v, () => {}, () => {});
+      const { frames, groupNodes, clauseNodes } = buildLayout(clauses, argumentsList, v, () => {}, () => {}, () => {});
       return [...frames, ...groupNodes, ...clauseNodes].find((n) => n.id === id);
     },
     [clauses, argumentsList],
@@ -478,6 +511,30 @@ function GraphInner({
     [view, premisesOf, openChain, changeViewAround],
   );
 
+  // The bottom dot mirrors the top one: it shows the arguments this clause is a premise
+  // in, one level down. Closing it closes everything below.
+  const toggleBelow = useCallback(
+    (id: string) => {
+      let next: GraphView;
+      if (view.below.has(id)) {
+        const closing = premiseChain([id], conclusionsOf);
+        const keep = (c: string) => !closing.has(c);
+        next = {
+          ...view,
+          open: new Set([...view.open].filter(keep)),
+          pinned: new Set([...view.pinned].filter(keep)),
+          below: new Set([...view.below].filter((c) => c !== id && keep(c))),
+        };
+      } else {
+        const conclusions = conclusionsOf.get(id) ?? [];
+        next = conclusions.reduce((v, c) => openChain(v, c, false), view);
+        next = { ...next, pinned: new Set([...next.pinned, ...conclusions]), below: new Set([...next.below, id]) };
+      }
+      changeViewAround(next, id, id);
+    },
+    [view, conclusionsOf, openChain, changeViewAround],
+  );
+
   useEffect(() => {
     function onChange() {
       setIsFullscreen(document.fullscreenElement === wrapperRef.current);
@@ -494,8 +551,8 @@ function GraphInner({
   }
 
   const layout = useMemo(
-    () => buildLayout(clauses, argumentsList, view, toggleCategory, toggleChain),
-    [clauses, argumentsList, view, toggleCategory, toggleChain],
+    () => buildLayout(clauses, argumentsList, view, toggleCategory, toggleChain, toggleBelow),
+    [clauses, argumentsList, view, toggleCategory, toggleChain, toggleBelow],
   );
 
   const edges = useMemo(
