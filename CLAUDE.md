@@ -1,5 +1,7 @@
 # Logos
 
+@AGENTS.md
+
 A structured argument graph platform where users publish reusable logical clauses and compose them into arguments. Think Kialo meets formal logic, built for philosophers and curious thinkers alike.
 
 ## What Logos is
@@ -14,8 +16,10 @@ The result is a DAG (directed acyclic graph) of logical dependencies across the 
 
 ## Core Features
 
+Planned and built features (check the code before assuming one exists):
+
 - **Argument builder** — drag clauses into premise slots or type new ones with AI suggestions
-- **AI similarity detection** — real-time semantic search as users type, surfacing existing clauses to prevent duplicates. Uses pgvector + embeddings.
+- **AI similarity detection** (planned) — real-time semantic search as users type, surfacing existing clauses to prevent duplicates. Will use pgvector + embeddings.
 - **Reputation system** — citation count is your reputation score. Non-transferable, identity-bound. Displayed on profiles.
 - **Weighted voting** — thumbs up/down on clauses and arguments, weighted by the voter's citation count
 - **Governance & feature gating** — certain features require a citation threshold
@@ -30,8 +34,8 @@ The result is a DAG (directed acyclic graph) of logical dependencies across the 
 
 - **Framework** — Next.js (App Router)
 - **Database** — Postgres with pgvector for semantic similarity search
-- **Auth** — Clerk
-- **AI** — Claude (embeddings + similarity suggestions)
+- **Auth** — none yet: a single local user (clerkId "solo-user") and an ACTION_PASSWORD gate in `src/lib/auth.ts`; Clerk is planned
+- **AI** — not built; `Clause.embedding` (pgvector) exists in the schema but nothing fills it. Claude embeddings + similarity suggestions are planned
 - **Hosting** — Vercel
 
 ## Coding Conventions
