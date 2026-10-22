@@ -23,6 +23,10 @@ const childOf = (path: string, container: string | null) =>
 // So lay out each open category as a plain graph of its own loose clauses, folded
 // sub-categories and already laid-out sub-category blocks, innermost first.
 // Links between clauses in different sub-categories become links between their blocks.
+// dagre re-sorts a row whenever a category opens, so an opened category can jump
+// past its neighbors: a container holding only sub-categories packs them side by
+// side in a fixed (alphabetical) order before its own size is measured. Containers
+// that also hold loose clauses keep dagre's arrangement so nothing lands on them.
 function placeNested(
   clauses: ClauseData[],
   links: [string, string][],
@@ -35,16 +39,17 @@ function placeNested(
     ...clauses.map((c) => [c.id, c.category] as const),
     ...foldedPaths.map((p) => [groupNodeId(p), p] as const),
   ]);
+  const nodeIdOf = (path: string) => (folded.has(path) ? groupNodeId(path) : clusterId(path));
   const memberIn = (id: string, container: string | null) => {
     const path = location.get(id);
     if (path === undefined) return null;
     if (path === container) return id;
     if (path === null || !within(path, container)) return null;
-    const child = childOf(path, container);
-    return folded.has(child) ? groupNodeId(child) : clusterId(child);
+    return nodeIdOf(childOf(path, container));
   };
 
   const placed = new Map<string, Placed>();
+  const frames = new Map<string, Box>();
   type Block = { width: number; height: number; place: (left: number, top: number) => void };
 
   function layOut(container: string | null): Block {
@@ -53,9 +58,8 @@ function placeNested(
     graph.setDefaultEdgeLabel(() => ({}));
     const blocks = new Map<string, Block>();
 
-    for (const c of clauses) {
-      if (c.category === container) graph.setNode(c.id, { width: CLAUSE_WIDTH, height: heights.get(c.id)! });
-    }
+    const loose = clauses.filter((c) => c.category === container);
+    for (const c of loose) graph.setNode(c.id, { width: CLAUSE_WIDTH, height: heights.get(c.id)! });
     // One sorted pass, so a sub-category keeps its place in line whether it's folded or open.
     const children = [...openPaths, ...foldedPaths].filter((p) => parentPath(p) === container).sort();
     for (const p of children) {
@@ -75,6 +79,15 @@ function placeNested(
     dagre.layout(graph);
 
     const nodes = graph.nodes().map((id) => ({ id, ...(graph.node(id) as Placed) }));
+    if (loose.length === 0 && children.length >= 2) {
+      const byId = new Map(nodes.map((n) => [n.id, n]));
+      let cursor = Math.min(...nodes.map((n) => n.x - n.width / 2));
+      for (const p of children) {
+        const n = byId.get(nodeIdOf(p))!;
+        n.x = cursor + n.width / 2;
+        cursor += n.width + SIBLING_GAP;
+      }
+    }
     const left = Math.min(...nodes.map((n) => n.x - n.width / 2));
     const top = Math.min(...nodes.map((n) => n.y - n.height / 2));
     const right = Math.max(...nodes.map((n) => n.x + n.width / 2));
@@ -82,10 +95,15 @@ function placeNested(
     const padX = container === null ? 0 : FRAME_PADDING;
     const padTop = container === null ? 0 : FRAME_PADDING + FRAME_HEADER;
     const padBottom = container === null ? 0 : FRAME_PADDING;
+    const width = right - left + 2 * padX;
+    const height = bottom - top + padTop + padBottom;
     return {
-      width: right - left + 2 * padX,
-      height: bottom - top + padTop + padBottom,
+      width,
+      height,
       place: (blockLeft, blockTop) => {
+        if (container !== null) {
+          frames.set(container, { left: blockLeft, top: blockTop, right: blockLeft + width, bottom: blockTop + height });
+        }
         for (const n of nodes) {
           const x = blockLeft + padX + n.x - left;
           const y = blockTop + padTop + n.y - top;
@@ -98,7 +116,7 @@ function placeNested(
   }
 
   layOut(null).place(0, 0);
-  return placed;
+  return { placed, frames };
 }
 
 // dagre orders nodes within a rank to minimize edge crossings and ignores
@@ -124,61 +142,6 @@ function orderPremisesLeftToRight(
   }
 }
 
-// dagre re-sorts a row whenever a category opens, so an opened category can jump
-// past its neighbors. Working from the innermost categories outward: re-pack each
-// container's sub-categories in a fixed (alphabetical) order, moving each one's
-// whole contents with it, then size the container's frame around wherever its
-// contents ended up, so the next level out packs using the real sizes. Containers
-// that also hold loose clauses keep dagre's arrangement so nothing lands on them.
-function arrangeCategories(
-  placed: Map<string, Placed>,
-  clauses: ClauseData[],
-  openPaths: Set<string>,
-  foldedPaths: string[],
-) {
-  const frames = new Map<string, Box>();
-  const nodeBox = (id: string): Box => {
-    const n = placed.get(id)!;
-    return { left: n.x - n.width / 2, top: n.y - n.height / 2, right: n.x + n.width / 2, bottom: n.y + n.height / 2 };
-  };
-  const boxOf = (path: string) => frames.get(path) ?? nodeBox(groupNodeId(path));
-  const shift = (path: string, dx: number) => {
-    for (const p of openPaths) {
-      if (!within(p, path)) continue;
-      const f = frames.get(p);
-      if (f) frames.set(p, { ...f, left: f.left + dx, right: f.right + dx });
-    }
-    for (const p of foldedPaths) if (within(p, path)) placed.get(groupNodeId(p))!.x += dx;
-    for (const c of clauses) if (c.category !== null && within(c.category, path)) placed.get(c.id)!.x += dx;
-  };
-
-  const depth = (p: string | null) => (p === null ? 0 : p.split("/").length);
-  const containers = [...openPaths, null].sort((a, b) => depth(b) - depth(a));
-  for (const container of containers) {
-    const children = [...openPaths, ...foldedPaths].filter((p) => parentPath(p) === container).sort();
-    const loose = clauses.filter((c) => c.category === container);
-
-    if (loose.length === 0 && children.length >= 2) {
-      let cursor = Math.min(...children.map((p) => boxOf(p).left));
-      for (const p of children) {
-        const box = boxOf(p);
-        shift(p, cursor - box.left);
-        cursor += box.right - box.left + SIBLING_GAP;
-      }
-    }
-
-    if (container === null) continue;
-    const parts = [...loose.map((c) => nodeBox(c.id)), ...children.map(boxOf)];
-    frames.set(container, {
-      left: Math.min(...parts.map((b) => b.left)) - FRAME_PADDING,
-      right: Math.max(...parts.map((b) => b.right)) + FRAME_PADDING,
-      top: Math.min(...parts.map((b) => b.top)) - FRAME_PADDING - FRAME_HEADER,
-      bottom: Math.max(...parts.map((b) => b.bottom)) + FRAME_PADDING,
-    });
-  }
-  return frames;
-}
-
 // Centers for every clause and folded-category node on the map, plus a frame for
 // every open category that still contains something visible.
 export function layoutMap(
@@ -196,12 +159,11 @@ export function layoutMap(
   }
 
   const links = argumentsList.flatMap((a) => a.premises.map((p) => [p.clauseId, a.conclusionId] as [string, string]));
-  const placed = placeNested(clauses, links, openPaths, foldedPaths, heights);
+  const { placed, frames } = placeNested(clauses, links, openPaths, foldedPaths, heights);
   const containerOf = new Map<string, string | null>([
     ...clauses.map((c) => [c.id, c.category] as const),
     ...foldedPaths.map((p) => [groupNodeId(p), parentPath(p)] as const),
   ]);
   orderPremisesLeftToRight(placed, argumentsList, containerOf);
-  const frames = arrangeCategories(placed, clauses, openPaths, foldedPaths);
   return { placed, frames };
 }

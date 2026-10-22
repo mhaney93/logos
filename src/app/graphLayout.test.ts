@@ -54,8 +54,7 @@ const heights = new Map(shape.map(([id, , height]) => [id, height]));
 
 const overlaps = (a: Box, b: Box) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
-test("lays out the shape that crashed dagre's clustered layout", () => {
-  const { placed, frames } = layoutMap(clauses, argumentsList, [], heights);
+function assertNoOverlaps(clauses: ClauseData[], { placed, frames }: ReturnType<typeof layoutMap>) {
   const boxes = clauses.map((c) => {
     const n = placed.get(c.id);
     assert.ok(n && Number.isFinite(n.x) && Number.isFinite(n.y), `${c.id} has a position`);
@@ -64,7 +63,7 @@ test("lays out the shape that crashed dagre's clustered layout", () => {
 
   for (const [i, a] of boxes.entries()) {
     for (const b of boxes.slice(i + 1)) assert.ok(!overlaps(a.box, b.box), `${a.clause.id} overlaps ${b.clause.id}`);
-    for (const path of prefixes(a.clause.category!)) {
+    for (const path of a.clause.category ? prefixes(a.clause.category) : []) {
       const frame = frames.get(path)!;
       const inside = a.box.left >= frame.left && a.box.right <= frame.right && a.box.top >= frame.top && a.box.bottom <= frame.bottom;
       assert.ok(inside, `${a.clause.id} sits inside ${path}`);
@@ -78,6 +77,23 @@ test("lays out the shape that crashed dagre's clustered layout", () => {
       assert.ok(!overlaps(a, b), `${p} overlaps ${q}`);
     }
   }
+}
+
+test("lays out the shape that crashed dagre's clustered layout", () => {
+  assertNoOverlaps(clauses, layoutMap(clauses, argumentsList, [], heights));
+});
+
+test("a category packed side by side still fits beside its siblings", () => {
+  const nested: ClauseData[] = [
+    ["x", null],
+    ["p1", "P"],
+    ["a1", "P/Q/A"],
+    ["b1", "P/Q/B"],
+    ["r1", "P/R"],
+    ["d1", "D"],
+  ].map(([id, category]) => ({ id: id!, text: "", support: null, category }));
+  const linked: ArgumentData[] = [{ id: "a-b1", conclusionId: "b1", premises: [{ clauseId: "a1" }] }];
+  assertNoOverlaps(nested, layoutMap(nested, linked, [], new Map(nested.map((c) => [c.id, 56]))));
 });
 
 test("a folded category keeps its node inside its open parent", () => {
