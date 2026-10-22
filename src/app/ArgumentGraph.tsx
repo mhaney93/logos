@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   ControlButton,
@@ -18,8 +18,9 @@ import {
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import { ClauseSupportSidebar } from "./ClauseSupportSidebar";
+import { SearchBox } from "./SearchBox";
+import { normalizeQuery, searchMatches, type SearchMatch } from "./search";
 import { NoteBadges } from "./components/NoteBadges";
-import { SearchInput } from "./components/SearchInput";
 import { noteKinds, type NoteKind } from "@/lib/notes";
 import { EDGE_HIT_WIDTH, edgeEmphasis } from "@/lib/edges";
 import {
@@ -568,20 +569,20 @@ function GraphInner({
     [layout.edges, boldEdgeId, hoveredEdgeId],
   );
 
-  const trimmedQuery = query.trim().toLowerCase();
+  // Typing stays instant while matching and re-highlighting the whole map catch up.
+  const deferredQuery = useDeferredValue(query);
+  const trimmedQuery = normalizeQuery(deferredQuery);
+  const matches = useMemo(() => searchMatches(clauses, allPaths, deferredQuery), [clauses, allPaths, deferredQuery]);
+  const matchesFor = useCallback((q: string) => searchMatches(clauses, allPaths, q), [clauses, allPaths]);
   const matchingClauses = useMemo(
-    () => (trimmedQuery ? clauses.filter((c) => c.text.toLowerCase().includes(trimmedQuery)) : []),
-    [clauses, trimmedQuery],
+    () => matches.flatMap((m) => (m.kind === "clause" ? [m.clause] : [])),
+    [matches],
   );
   const matchingPremises = useMemo(
     () => premiseChain(matchingClauses.map((c) => c.id), premisesOf),
     [premisesOf, matchingClauses],
   );
-  // Category names aren't clause text, so they're matched separately.
-  const matchingPaths = useMemo(
-    () => (trimmedQuery ? allPaths.filter((p) => categoryName(p).toLowerCase().includes(trimmedQuery)) : []),
-    [allPaths, trimmedQuery],
-  );
+  const matchingPaths = useMemo(() => matches.flatMap((m) => (m.kind === "category" ? [m.path] : [])), [matches]);
 
   const nodes = useMemo(() => {
     const clauseHits = new Set(matchingClauses.map((c) => c.id));
@@ -627,17 +628,15 @@ function GraphInner({
     centerOn(nodeIn(next, nodeId));
   }
 
-  function focusFirstMatch() {
-    const path = matchingPaths[0];
-    if (path) {
+  function focusMatch(match: SearchMatch) {
+    if (match.kind === "category") {
       const next = new Set(collapsed);
-      for (const p of prefixes(path)) next.delete(p);
-      next.add(path);
-      reveal({ ...view, collapsed: next }, groupNodeId(path));
+      for (const p of prefixes(match.path)) next.delete(p);
+      next.add(match.path);
+      reveal({ ...view, collapsed: next }, groupNodeId(match.path));
       return;
     }
-    const clause = matchingClauses[0];
-    if (!clause) return;
+    const { clause } = match;
     // Open the clause's whole chain, but keep the camera on the clause.
     const next = openChain(view, clause.id, true);
     reveal({ ...next, pinned: new Set([...view.pinned, clause.id]) }, clause.id);
@@ -651,17 +650,12 @@ function GraphInner({
       className={`flex min-h-0 flex-1 flex-col gap-3 ${isFullscreen ? "h-screen bg-background p-4" : ""}`}
     >
       <div className="flex items-center gap-3">
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          onEnter={focusFirstMatch}
-          placeholder="Search clauses or categories…"
-        />
+        <SearchBox query={query} onQueryChange={setQuery} matches={matches} matchesQuery={deferredQuery} matchesFor={matchesFor} onPick={focusMatch} />
         {trimmedQuery && (
           <p className="shrink-0 text-xs text-zinc-500">
             {matchingPaths.length > 0 &&
               `${matchingPaths.length} categor${matchingPaths.length === 1 ? "y" : "ies"}, `}
-            {matchingClauses.length} clause{matchingClauses.length === 1 ? "" : "s"} — Enter to jump
+            {matchingClauses.length} clause{matchingClauses.length === 1 ? "" : "s"} — ↓ to choose, Enter to jump
           </p>
         )}
       </div>
