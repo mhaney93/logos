@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { allCategoryPaths, type ClauseData } from "./graphGroups";
-import { categoryTrail, matchLabel, matchTrail, moveHighlight, searchMatches } from "./search";
+import { categoryTrail, enterTarget, matchLabel, matchTrail, moveHighlight, searchMatches } from "./search";
 
 const clause = (id: string, text: string, category: string | null): ClauseData => ({ id, text, support: null, category });
 const clauses = [
@@ -57,4 +57,22 @@ test("arrow up climbs back to the input", () => {
 test("with no matches nothing is highlighted", () => {
   assert.equal(moveHighlight(-1, "ArrowDown", 0), -1);
   assert.equal(moveHighlight(4, "ArrowUp", 0), -1);
+});
+
+test("Enter on a list still showing an older query picks the first match for what was typed", () => {
+  const stale = searchMatches(clauses, paths, "c");
+  const target = enterTarget(stale, "c", "patience", 0, (q) => searchMatches(clauses, paths, q));
+  assert.equal(target && matchLabel(target), "Patience is a virtue");
+});
+
+test("Enter on a current list picks the highlighted row, or the first when none is", () => {
+  const shown = searchMatches(clauses, paths, "courage");
+  const matchesFor = () => assert.fail("should not re-search a current list");
+  assert.equal(enterTarget(shown, "courage", " Courage ", 1, matchesFor), shown[1]);
+  assert.equal(enterTarget(shown, "courage", "courage", -1, matchesFor), shown[0]);
+  assert.equal(enterTarget(shown, "courage", "courage", 5, matchesFor), shown[0]);
+});
+
+test("Enter with nothing matching picks nothing", () => {
+  assert.equal(enterTarget([], "", "zzz", -1, (q) => searchMatches(clauses, paths, q)), undefined);
 });

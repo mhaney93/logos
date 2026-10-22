@@ -1,17 +1,21 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { matchKey, matchLabel, matchTrail, moveHighlight, type SearchMatch } from "./search";
+import { enterTarget, matchKey, matchLabel, matchTrail, moveHighlight, type SearchMatch } from "./search";
 
 export function SearchBox({
   query,
   onQueryChange,
   matches,
+  matchesQuery,
+  matchesFor,
   onPick,
 }: {
   query: string;
   onQueryChange: (query: string) => void;
   matches: SearchMatch[];
+  matchesQuery: string;
+  matchesFor: (query: string) => SearchMatch[];
   onPick: (match: SearchMatch) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -49,7 +53,7 @@ export function SearchBox({
             setOpen(true);
             setHighlight((i) => moveHighlight(i, e.key as "ArrowDown" | "ArrowUp", matches.length));
           } else if (e.key === "Enter") {
-            pick(matches[Math.max(highlight, 0)]);
+            pick(enterTarget(matches, matchesQuery, query, highlight, matchesFor));
           } else if (e.key === "Escape") {
             setOpen(false);
             setHighlight(-1);

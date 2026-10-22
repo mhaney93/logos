@@ -19,7 +19,7 @@ import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import { ClauseSupportSidebar } from "./ClauseSupportSidebar";
 import { SearchBox } from "./SearchBox";
-import { searchMatches, type SearchMatch } from "./search";
+import { normalizeQuery, searchMatches, type SearchMatch } from "./search";
 import { NoteBadges } from "./components/NoteBadges";
 import { noteKinds, type NoteKind } from "@/lib/notes";
 import {
@@ -568,8 +568,10 @@ function GraphInner({
   );
 
   // Typing stays instant while matching and re-highlighting the whole map catch up.
-  const trimmedQuery = useDeferredValue(query).trim().toLowerCase();
-  const matches = useMemo(() => searchMatches(clauses, allPaths, trimmedQuery), [clauses, allPaths, trimmedQuery]);
+  const deferredQuery = useDeferredValue(query);
+  const trimmedQuery = normalizeQuery(deferredQuery);
+  const matches = useMemo(() => searchMatches(clauses, allPaths, deferredQuery), [clauses, allPaths, deferredQuery]);
+  const matchesFor = useCallback((q: string) => searchMatches(clauses, allPaths, q), [clauses, allPaths]);
   const matchingClauses = useMemo(
     () => matches.flatMap((m) => (m.kind === "clause" ? [m.clause] : [])),
     [matches],
@@ -646,7 +648,7 @@ function GraphInner({
       className={`flex min-h-0 flex-1 flex-col gap-3 ${isFullscreen ? "h-screen bg-background p-4" : ""}`}
     >
       <div className="flex items-center gap-3">
-        <SearchBox query={query} onQueryChange={setQuery} matches={matches} onPick={focusMatch} />
+        <SearchBox query={query} onQueryChange={setQuery} matches={matches} matchesQuery={deferredQuery} matchesFor={matchesFor} onPick={focusMatch} />
         {trimmedQuery && (
           <p className="shrink-0 text-xs text-zinc-500">
             {matchingPaths.length > 0 &&

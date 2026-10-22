@@ -4,9 +4,13 @@ export type SearchMatch =
   | { kind: "category"; path: string }
   | { kind: "clause"; clause: ClauseData };
 
+export function normalizeQuery(query: string) {
+  return query.trim().toLowerCase();
+}
+
 // Category hits come first: they're fewer, and jumping to one shows its clauses.
 export function searchMatches(clauses: ClauseData[], paths: string[], query: string): SearchMatch[] {
-  const q = query.trim().toLowerCase();
+  const q = normalizeQuery(query);
   if (!q) return [];
   return [
     ...paths.filter((p) => categoryName(p).toLowerCase().includes(q)).map((path) => ({ kind: "category" as const, path })),
@@ -36,4 +40,16 @@ export function matchKey(match: SearchMatch) {
 export function moveHighlight(index: number, key: "ArrowDown" | "ArrowUp", count: number) {
   if (count === 0) return -1;
   return key === "ArrowDown" ? Math.min(index + 1, count - 1) : Math.max(index - 1, -1);
+}
+
+// The shown list lags the input while it's deferred, so Enter on a stale list searches what was typed.
+export function enterTarget(
+  shown: SearchMatch[],
+  shownQuery: string,
+  query: string,
+  highlight: number,
+  matchesFor: (query: string) => SearchMatch[],
+): SearchMatch | undefined {
+  if (normalizeQuery(shownQuery) !== normalizeQuery(query)) return matchesFor(query)[0];
+  return shown[highlight] ?? shown[0];
 }
