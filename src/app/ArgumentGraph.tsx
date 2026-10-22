@@ -18,6 +18,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import { ClauseSupportSidebar } from "./ClauseSupportSidebar";
+import { afterPaint } from "./afterPaint";
 import { SearchBox } from "./SearchBox";
 import { normalizeQuery, searchMatches, type SearchMatch } from "./search";
 import { NoteBadges } from "./components/NoteBadges";
@@ -156,6 +157,16 @@ function FrameNode({ data }: NodeProps<Node<FrameNodeData>>) {
 }
 
 const nodeTypes = { clause: ClauseNode, group: GroupNode, frame: FrameNode };
+
+// Spun by a transform so the compositor keeps it turning while layout blocks the main thread.
+function Spinner() {
+  return (
+    <span
+      aria-hidden
+      className="inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+    />
+  );
+}
 
 function FullscreenIcon({ exit }: { exit: boolean }) {
   return (
@@ -438,13 +449,23 @@ function GraphInner({
   const { collapsed } = view;
   const showingAll = collapsed.size === 0 && [...premisesOf.keys()].every((id) => view.open.has(id));
 
+  const [busyLabel, setBusyLabel] = useState<string | null>(null);
+
+  // Laying out the whole map can block for seconds, so paint the busy state first
+  // and only clear it once the new layout has rendered.
   function toggleShowAll() {
-    setView(
-      showingAll
-        ? homeView()
-        : { collapsed: new Set(), open: new Set(premisesOf.keys()), pinned: new Set(), below: new Set(conclusionsOf.keys()) },
-    );
-    requestAnimationFrame(() => fitView());
+    if (busyLabel) return;
+    const next = showingAll
+      ? homeView()
+      : { collapsed: new Set<string>(), open: new Set(premisesOf.keys()), pinned: new Set<string>(), below: new Set(conclusionsOf.keys()) };
+    setBusyLabel(showingAll ? "Collapsing…" : "Expanding…");
+    afterPaint(() => {
+      setView(next);
+      afterPaint(() => {
+        fitView();
+        setBusyLabel(null);
+      });
+    });
   }
 
   const nodeIn = useCallback(
@@ -698,12 +719,26 @@ function GraphInner({
             <button
               type="button"
               onClick={toggleShowAll}
-              className="rounded-full border border-black/[.08] bg-background px-3 py-1 text-xs font-semibold shadow-sm dark:border-white/[.145]"
+              disabled={busyLabel !== null}
+              aria-busy={busyLabel !== null}
+              className="flex items-center gap-1.5 rounded-full border border-black/[.08] bg-background px-3 py-1 text-xs font-semibold shadow-sm disabled:cursor-wait dark:border-white/[.145]"
             >
-              {showingAll ? "Back to home" : "Expand all"}
+              {busyLabel && <Spinner />}
+              {busyLabel ?? (showingAll ? "Back to home" : "Expand all")}
             </button>
           </Panel>
         </ReactFlow>
+        {busyLabel && (
+          <div
+            role="status"
+            className="absolute inset-0 z-10 flex cursor-wait items-center justify-center bg-background/60"
+          >
+            <span className="flex items-center gap-2 rounded-full border border-black/[.08] bg-background px-4 py-2 text-sm font-semibold shadow-sm dark:border-white/[.145]">
+              <Spinner />
+              {busyLabel}
+            </span>
+          </div>
+        )}
       </div>
 
       {selected && (
