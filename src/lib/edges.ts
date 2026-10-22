@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
-// Wider than the drawn line so it's easy to hit, including by touch.
-export const EDGE_HIT_WIDTH = 16;
+// Wider than React Flow's 20px default hit area so lines are easy to hit, including by touch.
+export const EDGE_HIT_WIDTH = 24;
 
 // A clicked line stays bold; a hovered one thickens and brightens so it's
 // clear which line a click will land on.

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { edgeEmphasis } from "./edges";
+import { EDGE_HIT_WIDTH, edgeEmphasis } from "./edges";
 
 const base = { stroke: "red", strokeWidth: 2, opacity: 0.85 };
 
@@ -21,4 +21,8 @@ test("a clicked line stays bolder than a hovered one", () => {
   const bold = edgeEmphasis(base, { bold: true, hovered: true })!;
   const hovered = edgeEmphasis(base, { bold: false, hovered: true })!;
   assert.ok(Number(bold.style.strokeWidth) > Number(hovered.style.strokeWidth));
+});
+
+test("a line's hit area is wider than React Flow's 20px default", () => {
+  assert.ok(EDGE_HIT_WIDTH > 20);
 });
