@@ -22,6 +22,7 @@ import { SearchBox } from "./SearchBox";
 import { normalizeQuery, searchMatches, type SearchMatch } from "./search";
 import { NoteBadges } from "./components/NoteBadges";
 import { noteKinds, type NoteKind } from "@/lib/notes";
+import { EDGE_HIT_WIDTH, edgeEmphasis } from "@/lib/edges";
 import {
   allCategoryPaths,
   categoryName,
@@ -323,6 +324,7 @@ function buildLayout(
         target: argument.conclusionId,
         markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor },
         style: { stroke: edgeColor, strokeWidth: 2, opacity: 0.85 },
+        interactionWidth: EDGE_HIT_WIDTH,
       });
     }
   });
@@ -419,6 +421,7 @@ function GraphInner({
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [boldEdgeId, setBoldEdgeId] = useState<string | null>(null);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const { setCenter, fitView, getViewport, setViewport } = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -559,12 +562,11 @@ function GraphInner({
 
   const edges = useMemo(
     () =>
-      layout.edges.map((e) =>
-        e.id === boldEdgeId
-          ? { ...e, zIndex: 1000, style: { ...e.style, strokeWidth: 6, opacity: 1 } }
-          : e,
-      ),
-    [layout.edges, boldEdgeId],
+      layout.edges.map((e) => {
+        const emphasis = edgeEmphasis(e.style ?? {}, { bold: e.id === boldEdgeId, hovered: e.id === hoveredEdgeId });
+        return emphasis ? { ...e, ...emphasis } : e;
+      }),
+    [layout.edges, boldEdgeId, hoveredEdgeId],
   );
 
   // Typing stays instant while matching and re-highlighting the whole map catch up.
@@ -674,6 +676,8 @@ function GraphInner({
           selectionOnDrag={false}
           proOptions={{ hideAttribution: true }}
           onEdgeClick={(_, edge) => setBoldEdgeId((id) => (id === edge.id ? null : edge.id))}
+          onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
+          onEdgeMouseLeave={() => setHoveredEdgeId(null)}
           onNodeClick={(_, node) => {
             if (node.type !== "clause") return;
             // Skip if the click was the tail end of a text-selection drag.

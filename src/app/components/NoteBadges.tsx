@@ -3,6 +3,7 @@ import type { NoteKind } from "@/lib/notes";
 const BADGES: Record<NoteKind, { label: string; title: string; size: string }> = {
   quote: { label: "“”", title: "Has a quote in Notes", size: "text-sm" },
   example: { label: "e.g.", title: "Has an example in Notes", size: "text-[10px]" },
+  notes: { label: "≡", title: "Has Notes", size: "text-sm" },
 };
 
 export function NoteBadges({ kinds, className = "" }: { kinds: NoteKind[]; className?: string }) {

@@ -22,6 +22,7 @@ export function SearchBox({
   const [highlight, setHighlight] = useState(-1);
   const listId = useId();
   const listRef = useRef<HTMLUListElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const showList = open && matches.length > 0;
   const optionId = (i: number) => `${listId}-option-${i}`;
 
@@ -39,6 +40,7 @@ export function SearchBox({
   return (
     <div className="relative min-w-0 flex-1">
       <input
+        ref={inputRef}
         value={query}
         onChange={(e) => {
           onQueryChange(e.target.value);
@@ -65,8 +67,26 @@ export function SearchBox({
         aria-autocomplete="list"
         aria-activedescendant={showList && highlight >= 0 ? optionId(highlight) : undefined}
         placeholder="Search clauses or categories…"
-        className="w-full rounded-full border border-black/[.08] px-4 py-2 text-sm dark:border-white/[.145]"
+        className="w-full rounded-full border border-black/[.08] py-2 pr-9 pl-4 text-sm dark:border-white/[.145]"
       />
+      {query && (
+        <button
+          type="button"
+          aria-label="Clear search"
+          title="Clear search"
+          // Keep focus in the input so the blur doesn't close and reopen the list.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            onQueryChange("");
+            setOpen(false);
+            setHighlight(-1);
+            inputRef.current?.focus();
+          }}
+          className="absolute top-1/2 right-2 flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-lg leading-none text-zinc-500 hover:bg-black/[.06] dark:hover:bg-white/[.1]"
+        >
+          ×
+        </button>
+      )}
       {showList && (
         <ul
           ref={listRef}
