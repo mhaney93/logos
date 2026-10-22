@@ -19,6 +19,7 @@ import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import { ClauseSupportSidebar } from "./ClauseSupportSidebar";
 import { NoteBadges } from "./components/NoteBadges";
+import { SearchInput } from "./components/SearchInput";
 import { noteKinds, type NoteKind } from "@/lib/notes";
 import { EDGE_HIT_WIDTH, edgeEmphasis } from "@/lib/edges";
 import {
@@ -650,14 +651,11 @@ function GraphInner({
       className={`flex min-h-0 flex-1 flex-col gap-3 ${isFullscreen ? "h-screen bg-background p-4" : ""}`}
     >
       <div className="flex items-center gap-3">
-        <input
+        <SearchInput
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") focusFirstMatch();
-          }}
+          onChange={setQuery}
+          onEnter={focusFirstMatch}
           placeholder="Search clauses or categories…"
-          className="min-w-0 flex-1 rounded-full border border-black/[.08] px-4 py-2 text-sm dark:border-white/[.145]"
         />
         {trimmedQuery && (
           <p className="shrink-0 text-xs text-zinc-500">
