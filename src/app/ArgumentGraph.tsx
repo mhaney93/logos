@@ -16,7 +16,6 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import dagre from "dagre";
 import { ClauseSupportSidebar } from "./ClauseSupportSidebar";
 import { afterPaint } from "./afterPaint";
 import { SearchBox } from "./SearchBox";
@@ -24,6 +23,7 @@ import { normalizeQuery, searchMatches, type SearchMatch } from "./search";
 import { NoteBadges } from "./components/NoteBadges";
 import { noteKinds, type NoteKind } from "@/lib/notes";
 import { EDGE_HIT_WIDTH, edgeEmphasis } from "@/lib/edges";
+import { CLAUSE_MIN_HEIGHT, CLAUSE_WIDTH, layoutMap } from "./graphLayout";
 import {
   allCategoryPaths,
   categoryName,
@@ -33,7 +33,6 @@ import {
   conclusionsByPremise,
   collapsedAncestor,
   groupNodeId,
-  parentPath,
   premiseChain,
   premisesByConclusion,
   prefixes,
@@ -43,12 +42,9 @@ import {
   type GraphView,
 } from "./graphGroups";
 
-const CLAUSE_WIDTH = 240;
 const CLAUSE_PADDING = 20; // 10px top + 10px bottom
 const CLAUSE_CHARS_PER_LINE = 32; // rough fit for 240px width at 12px font
 const CLAUSE_LINE_HEIGHT = 16;
-const CLAUSE_MIN_HEIGHT = 56;
-const FRAME_HEADER = 30;
 
 function estimateClauseHeight(text: string) {
   const lines = Math.max(1, Math.ceil(text.length / CLAUSE_CHARS_PER_LINE));
@@ -186,88 +182,6 @@ function hueColor(index: number) {
   return `hsl(${(index * 137.508) % 360}, 70%, 50%)`;
 }
 
-// dagre orders nodes within a rank to minimize edge crossings and ignores
-// premise order, so swap same-rank premises' x slots back into saved order.
-// All clause nodes share one width, so exchanging slots can't cause overlap.
-// Swaps stay within one frame so no clause gets pulled out of its frame.
-function orderPremisesLeftToRight(graph: dagre.graphlib.Graph, argumentsList: ArgumentData[]) {
-  for (const argument of argumentsList) {
-    const bySlot = new Map<string, { x: number }[]>();
-    for (const premise of argument.premises) {
-      const node = graph.node(premise.clauseId);
-      const key = `${node.y}|${graph.parent(premise.clauseId) ?? ""}`;
-      bySlot.set(key, [...(bySlot.get(key) ?? []), node]);
-    }
-    for (const slotNodes of bySlot.values()) {
-      const slots = slotNodes.map((n) => n.x).sort((a, b) => a - b);
-      slotNodes.forEach((n, i) => (n.x = slots[i]));
-    }
-  }
-}
-
-const SIBLING_GAP = 60;
-const FRAME_PADDING = 20;
-
-type Box = { left: number; top: number; right: number; bottom: number };
-
-// dagre re-sorts a row whenever a category opens, so an opened category can jump
-// past its neighbors. Working from the innermost categories outward: re-pack each
-// container's sub-categories in a fixed (alphabetical) order, moving each one's
-// whole contents with it, then size the container's frame around wherever its
-// contents ended up, so the next level out packs using the real sizes. Containers
-// that also hold loose clauses keep dagre's arrangement so nothing lands on them.
-function arrangeCategories(
-  graph: dagre.graphlib.Graph,
-  clauses: ClauseData[],
-  openPaths: Set<string>,
-  foldedPaths: string[],
-) {
-  const frames = new Map<string, Box>();
-  const nodeBox = (id: string): Box => {
-    const n = graph.node(id);
-    return { left: n.x - n.width / 2, top: n.y - n.height / 2, right: n.x + n.width / 2, bottom: n.y + n.height / 2 };
-  };
-  const boxOf = (path: string) => frames.get(path) ?? nodeBox(groupNodeId(path));
-  const within = (path: string, other: string | null) =>
-    other !== null && (other === path || other.startsWith(`${path}/`));
-  const shift = (path: string, dx: number) => {
-    for (const p of openPaths) {
-      if (!within(path, p)) continue;
-      graph.node(clusterId(p)).x += dx;
-      const f = frames.get(p);
-      if (f) frames.set(p, { ...f, left: f.left + dx, right: f.right + dx });
-    }
-    for (const p of foldedPaths) if (within(path, p)) graph.node(groupNodeId(p)).x += dx;
-    for (const c of clauses) if (within(path, c.category)) graph.node(c.id).x += dx;
-  };
-
-  const depth = (p: string | null) => (p === null ? 0 : p.split("/").length);
-  const containers = [...openPaths, null].sort((a, b) => depth(b) - depth(a));
-  for (const container of containers) {
-    const children = [...openPaths, ...foldedPaths].filter((p) => parentPath(p) === container).sort();
-    const loose = clauses.filter((c) => c.category === container);
-
-    if (loose.length === 0 && children.length >= 2) {
-      let cursor = Math.min(...children.map((p) => boxOf(p).left));
-      for (const p of children) {
-        const box = boxOf(p);
-        shift(p, cursor - box.left);
-        cursor += box.right - box.left + SIBLING_GAP;
-      }
-    }
-
-    if (container === null) continue;
-    const parts = [...loose.map((c) => nodeBox(c.id)), ...children.map(boxOf)];
-    frames.set(container, {
-      left: Math.min(...parts.map((b) => b.left)) - FRAME_PADDING,
-      right: Math.max(...parts.map((b) => b.right)) + FRAME_PADDING,
-      top: Math.min(...parts.map((b) => b.top)) - FRAME_PADDING - FRAME_HEADER,
-      bottom: Math.max(...parts.map((b) => b.bottom)) + FRAME_PADDING,
-    });
-  }
-  return frames;
-}
-
 function buildLayout(
   allClauses: ClauseData[],
   allArguments: ArgumentData[],
@@ -291,35 +205,7 @@ function buildLayout(
     view.collapsed,
   );
 
-  // Every open category that still contains something visible gets a frame.
-  const openPaths = new Set<string>();
-  for (const clause of clauses) {
-    if (clause.category) for (const p of prefixes(clause.category)) openPaths.add(p);
-  }
-  for (const folded of foldedPaths) {
-    for (const p of prefixes(folded)) if (p !== folded) openPaths.add(p);
-  }
-
-  const graph = new dagre.graphlib.Graph({ compound: true });
-  graph.setGraph({ rankdir: "TB", nodesep: 40, ranksep: 110 });
-  graph.setDefaultEdgeLabel(() => ({}));
-
-  for (const p of openPaths) graph.setNode(clusterId(p), {});
-  for (const p of openPaths) {
-    const parent = parentPath(p);
-    if (parent) graph.setParent(clusterId(p), clusterId(parent));
-  }
   const heights = new Map(clauses.map((c) => [c.id, estimateClauseHeight(c.text)]));
-  for (const clause of clauses) {
-    graph.setNode(clause.id, { width: CLAUSE_WIDTH, height: heights.get(clause.id) });
-    if (clause.category) graph.setParent(clause.id, clusterId(clause.category));
-  }
-  for (const folded of foldedPaths) {
-    graph.setNode(groupNodeId(folded), { width: CLAUSE_WIDTH, height: CLAUSE_MIN_HEIGHT });
-    const parent = parentPath(folded);
-    if (parent) graph.setParent(groupNodeId(folded), clusterId(parent));
-  }
-
   const edgeKeys = new Set<string>();
   const edges: Edge[] = [];
   argumentsList.forEach((argument) => {
@@ -328,7 +214,6 @@ function buildLayout(
       const key = `${premise.clauseId}->${argument.conclusionId}`;
       if (edgeKeys.has(key)) continue;
       edgeKeys.add(key);
-      graph.setEdge(premise.clauseId, argument.conclusionId);
       edges.push({
         id: `e-${argument.id}-${premise.clauseId}`,
         source: premise.clauseId,
@@ -340,9 +225,7 @@ function buildLayout(
     }
   });
 
-  dagre.layout(graph);
-  orderPremisesLeftToRight(graph, argumentsList);
-  const frameBoxes = arrangeCategories(graph, clauses, openPaths, foldedPaths);
+  const { placed, frames: frameBoxes } = layoutMap(clauses, argumentsList, foldedPaths, heights);
 
   const frames: Node<FrameNodeData>[] = [...frameBoxes].map(([p, box]) => {
     return {
@@ -358,7 +241,7 @@ function buildLayout(
   });
 
   const groupNodes: Node<GroupNodeData>[] = foldedPaths.map((p) => {
-    const pos = graph.node(groupNodeId(p));
+    const pos = placed.get(groupNodeId(p))!;
     return {
       id: groupNodeId(p),
       type: "group",
@@ -369,7 +252,7 @@ function buildLayout(
   });
 
   const clauseNodes: Node<ClauseNodeData>[] = clauses.map((clause) => {
-    const pos = graph.node(clause.id);
+    const pos = placed.get(clause.id)!;
     const height = heights.get(clause.id)!;
     return {
       id: clause.id,
