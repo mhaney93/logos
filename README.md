@@ -12,7 +12,7 @@ Live: https://logos-sandy-tau.vercel.app
 
 ## The map
 
-The app is a single page, `/`, showing the full graph. Every clause is a node, and every argument draws colored edges from its premises to its conclusion. Categories fold and unfold. Search matches clause text and category names, and it also highlights and unfolds every premise that leads to a matching clause. As you type, a dropdown under the search box lists the matches, each with its category trail read most specific first (`Love <- Virtues <- Ethics`). Use the arrow keys to choose one and Enter to jump to it. The × button clears the search. Click a clause to see its category and edit its Notes.
+The app is a single page, `/`, showing the full graph. Every clause is a node, and every argument draws colored edges from its premises to its conclusion. Categories fold and unfold. Search matches clause text and category names, and it also highlights and unfolds every premise that leads to a matching clause. As you type, a dropdown under the search box lists the matches, each with its category trail read most specific first (`Love <- Virtues <- Ethics`). Use the arrow keys to choose one and Enter to jump to it. The × button clears the search. Click a clause to see its category and edit its Notes. Drag with the left mouse button to pan the map. Middle-click to start autoscrolling: the map glides toward the pointer, faster the farther it moves from where you clicked; middle-click again to stop.
 
 ## Stack
 
