@@ -66,7 +66,7 @@ export function SearchBox({
         aria-controls={listId}
         aria-autocomplete="list"
         aria-activedescendant={showList && highlight >= 0 ? optionId(highlight) : undefined}
-        placeholder="Search clauses or categories…"
+        placeholder="Search clauses, notes, or categories…"
         className="w-full rounded-full border border-black/[.08] py-2 pr-9 pl-4 text-sm dark:border-white/[.145]"
       />
       {query && (
@@ -112,6 +112,9 @@ export function SearchBox({
                 <div className={`truncate ${match.kind === "category" ? "font-semibold" : ""}`}>
                   {matchLabel(match)}
                 </div>
+                {match.kind === "clause" && match.snippet && (
+                  <div className="truncate text-xs text-zinc-600 italic dark:text-zinc-400">Notes: {match.snippet}</div>
+                )}
                 {trail && <div className="truncate text-xs text-zinc-500">{trail}</div>}
               </li>
             );

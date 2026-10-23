@@ -2,19 +2,43 @@ import { categoryName, parentPath, type ClauseData } from "./graphGroups";
 
 export type SearchMatch =
   | { kind: "category"; path: string }
-  | { kind: "clause"; clause: ClauseData };
+  | { kind: "clause"; clause: ClauseData; snippet?: string };
 
 export function normalizeQuery(query: string) {
   return query.trim().toLowerCase();
 }
 
+const SNIPPET_CONTEXT = 30;
+
+// The stretch of notes around the first hit, so a notes-only match shows why it matched.
+export function notesSnippet(support: string, q: string) {
+  const flat = support.replace(/\s+/g, " ").trim();
+  const at = flat.toLowerCase().indexOf(q);
+  if (at < 0) return undefined;
+  const start = Math.max(0, at - SNIPPET_CONTEXT);
+  const end = Math.min(flat.length, at + q.length + SNIPPET_CONTEXT);
+  return `${start > 0 ? "…" : ""}${flat.slice(start, end)}${end < flat.length ? "…" : ""}`;
+}
+
 // Category hits come first: they're fewer, and jumping to one shows its clauses.
+// Title hits outrank clauses that only match in their sidebar notes.
 export function searchMatches(clauses: ClauseData[], paths: string[], query: string): SearchMatch[] {
   const q = normalizeQuery(query);
   if (!q) return [];
+  const titleHits: SearchMatch[] = [];
+  const notesHits: SearchMatch[] = [];
+  for (const clause of clauses) {
+    if (clause.text.toLowerCase().includes(q)) {
+      titleHits.push({ kind: "clause", clause });
+    } else if (clause.support) {
+      const snippet = notesSnippet(clause.support, q);
+      if (snippet) notesHits.push({ kind: "clause", clause, snippet });
+    }
+  }
   return [
     ...paths.filter((p) => categoryName(p).toLowerCase().includes(q)).map((path) => ({ kind: "category" as const, path })),
-    ...clauses.filter((c) => c.text.toLowerCase().includes(q)).map((clause) => ({ kind: "clause" as const, clause })),
+    ...titleHits,
+    ...notesHits,
   ];
 }
 
