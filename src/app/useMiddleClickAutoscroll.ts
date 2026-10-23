@@ -11,8 +11,7 @@ export function useMiddleClickAutoscroll(
   getViewport: () => Viewport,
   setViewport: (viewport: Viewport) => void,
 ) {
-  // Anchor in client coordinates, plus where to draw it inside the container.
-  const [anchor, setAnchor] = useState<{ client: Point; local: Point } | null>(null);
+  const [anchor, setAnchor] = useState<Point | null>(null);
   const pointer = useRef<Point>({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -23,13 +22,8 @@ export function useMiddleClickAutoscroll(
       if (e.button !== 1) return;
       e.preventDefault();
       e.stopPropagation();
-      const rect = container.getBoundingClientRect();
       pointer.current = { x: e.clientX, y: e.clientY };
-      setAnchor((on) =>
-        on
-          ? null
-          : { client: { x: e.clientX, y: e.clientY }, local: { x: e.clientX - rect.left, y: e.clientY - rect.top } },
-      );
+      setAnchor((on) => (on ? null : { x: e.clientX, y: e.clientY }));
     };
     container.addEventListener("mousedown", onMouseDown, { capture: true });
     return () => container.removeEventListener("mousedown", onMouseDown, { capture: true });
@@ -50,7 +44,7 @@ export function useMiddleClickAutoscroll(
 
     let frame = requestAnimationFrame(function tick(now: number, last = now) {
       const dt = (now - last) / 1000;
-      const v = autoscrollVelocity(pointer.current.x - anchor.client.x, pointer.current.y - anchor.client.y);
+      const v = autoscrollVelocity(pointer.current.x - anchor.x, pointer.current.y - anchor.y);
       if (dt > 0 && (v.x || v.y)) {
         const { x, y, zoom } = getViewport();
         setViewport({ x: x - v.x * dt, y: y - v.y * dt, zoom });
@@ -65,6 +59,4 @@ export function useMiddleClickAutoscroll(
       document.removeEventListener("mouseout", onMouseOut);
     };
   }, [anchor, getViewport, setViewport]);
-
-  return anchor?.local ?? null;
 }

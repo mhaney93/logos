@@ -330,7 +330,7 @@ function GraphInner({
   const { setCenter, fitView, getViewport, setViewport } = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<HTMLDivElement>(null);
-  const autoscrollAnchor = useMiddleClickAutoscroll(mapRef, getViewport, setViewport);
+  useMiddleClickAutoscroll(mapRef, getViewport, setViewport);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const allPaths = useMemo(() => allCategoryPaths(clauses), [clauses]);
@@ -628,13 +628,6 @@ function GraphInner({
             </button>
           </Panel>
         </ReactFlow>
-        {autoscrollAnchor && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute z-10 size-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-current bg-background/80 shadow-sm after:absolute after:left-1/2 after:top-1/2 after:size-1.5 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-current"
-            style={{ left: autoscrollAnchor.x, top: autoscrollAnchor.y }}
-          />
-        )}
         {busyLabel && (
           <div
             role="status"
