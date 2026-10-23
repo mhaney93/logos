@@ -28,7 +28,7 @@ body {
 /* React Flow's own stylesheet sets user-select: none !important on node
    content for drag purposes; this beats that so clause text is selectable. */
 .react-flow__node .clause-node-text {
-  cursor: text;
+  cursor: default;
   user-select: text !important;
   -webkit-user-select: text !important;
   pointer-events: auto !important;
