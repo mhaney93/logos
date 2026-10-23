@@ -41,14 +41,10 @@ export function useMiddleClickAutoscroll(
     const onMouseMove = (e: MouseEvent) => {
       pointer.current = { x: e.clientX, y: e.clientY };
     };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") stop();
-    };
     const onMouseOut = (e: MouseEvent) => {
       if (!e.relatedTarget) stop();
     };
     window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("keydown", onKeyDown);
     window.addEventListener("blur", stop);
     document.addEventListener("mouseout", onMouseOut);
 
@@ -65,7 +61,6 @@ export function useMiddleClickAutoscroll(
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("blur", stop);
       document.removeEventListener("mouseout", onMouseOut);
     };
