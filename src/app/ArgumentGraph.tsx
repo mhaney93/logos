@@ -19,6 +19,7 @@ import "@xyflow/react/dist/style.css";
 import { ClauseSupportSidebar } from "./ClauseSupportSidebar";
 import { afterPaint } from "./afterPaint";
 import { SearchBox } from "./SearchBox";
+import { useMiddleClickAutoscroll } from "./useMiddleClickAutoscroll";
 import { normalizeQuery, searchMatches, type SearchMatch } from "./search";
 import { NoteBadges } from "./components/NoteBadges";
 import { noteKinds, type NoteKind } from "@/lib/notes";
@@ -328,6 +329,8 @@ function GraphInner({
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const { setCenter, fitView, getViewport, setViewport } = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const autoscrollAnchor = useMiddleClickAutoscroll(mapRef, getViewport, setViewport);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const allPaths = useMemo(() => allCategoryPaths(clauses), [clauses]);
@@ -574,7 +577,10 @@ function GraphInner({
           </p>
         )}
       </div>
-      <div className="relative min-h-[400px] w-full flex-1 overflow-hidden rounded-lg border border-black/[.08] dark:border-white/[.145]">
+      <div
+        ref={mapRef}
+        className="relative min-h-[400px] w-full flex-1 overflow-hidden rounded-lg border border-black/[.08] dark:border-white/[.145]"
+      >
         {/* RF sizes itself to 100% of its parent, which a flex-stretched height can't
             resolve — pin it to the container instead. */}
         <ReactFlow
@@ -587,7 +593,7 @@ function GraphInner({
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
-          panOnDrag={[1, 2]}
+          panOnDrag={[0]}
           selectionOnDrag={false}
           proOptions={{ hideAttribution: true }}
           onEdgeClick={(_, edge) => setBoldEdgeId((id) => (id === edge.id ? null : edge.id))}
@@ -622,6 +628,13 @@ function GraphInner({
             </button>
           </Panel>
         </ReactFlow>
+        {autoscrollAnchor && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute z-10 size-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-current bg-background/80 shadow-sm after:absolute after:left-1/2 after:top-1/2 after:size-1.5 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-current"
+            style={{ left: autoscrollAnchor.x, top: autoscrollAnchor.y }}
+          />
+        )}
         {busyLabel && (
           <div
             role="status"
