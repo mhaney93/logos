@@ -24,6 +24,7 @@ import { NoteBadges } from "./components/NoteBadges";
 import { noteKinds, type NoteKind } from "@/lib/notes";
 import { EDGE_HIT_WIDTH, edgeEmphasis } from "@/lib/edges";
 import { CLAUSE_MIN_HEIGHT, CLAUSE_WIDTH, layoutMap } from "./graphLayout";
+import { categoryLabelNode, type CategoryLabelData } from "./categoryLabel";
 import {
   allCategoryPaths,
   categoryName,
@@ -63,7 +64,7 @@ type ClauseNodeData = {
   onToggleBelow: () => void;
 };
 type GroupNodeData = { path: string; count: number; accent: string; onToggle: () => void };
-type FrameNodeData = { path: string; accent: string; onToggle: () => void };
+type FrameNodeData = { path: string; accent: string };
 
 function ChainDot({ filled, label, onClick, className }: { filled: boolean; label: string; onClick: () => void; className: string }) {
   return (
@@ -136,14 +137,20 @@ function GroupNode({ data }: NodeProps<Node<GroupNodeData>>) {
 function FrameNode({ data }: NodeProps<Node<FrameNodeData>>) {
   return (
     <div
-      className="flex h-full w-full justify-center rounded-2xl"
+      className="h-full w-full rounded-2xl"
       style={{ border: `1px dashed ${data.accent}`, background: `color-mix(in srgb, ${data.accent} 6%, transparent)` }}
-    >
+    />
+  );
+}
+
+function CategoryLabelNode({ data }: NodeProps<Node<CategoryLabelData>>) {
+  return (
+    <div className="flex w-full justify-center">
       {/* Centered so the name lands where the folded node's name was. */}
       <button
         type="button"
         onClick={data.onToggle}
-        className="nodrag nopan m-1.5 self-start rounded-full px-3 py-0.5 text-xs font-semibold"
+        className="nodrag nopan m-1.5 rounded-full px-3 py-0.5 text-xs font-semibold"
         style={{ pointerEvents: "auto", background: `color-mix(in srgb, ${data.accent} 20%, var(--background))` }}
       >
         {categoryName(data.path)} ▾ collapse
@@ -152,7 +159,7 @@ function FrameNode({ data }: NodeProps<Node<FrameNodeData>>) {
   );
 }
 
-const nodeTypes = { clause: ClauseNode, group: GroupNode, frame: FrameNode };
+const nodeTypes = { clause: ClauseNode, group: GroupNode, frame: FrameNode, categoryLabel: CategoryLabelNode };
 
 // Spun by a transform so the compositor keeps it turning while layout blocks the main thread.
 function Spinner() {
@@ -232,13 +239,15 @@ function buildLayout(
       id: clusterId(p),
       type: "frame",
       position: { x: box.left, y: box.top },
-      data: { path: p, accent: color.get(p)!, onToggle: () => toggleCategory(p) },
+      data: { path: p, accent: color.get(p)! },
       style: { width: box.right - box.left, height: box.bottom - box.top, pointerEvents: "none" as const },
       // Outer frames render beneath the frames nested inside them.
       zIndex: -100 + p.split("/").length,
       selectable: false,
     };
   });
+
+  const frameLabels = [...frameBoxes].map(([p, box]) => categoryLabelNode(p, box, color.get(p)!, () => toggleCategory(p)));
 
   const groupNodes: Node<GroupNodeData>[] = foldedPaths.map((p) => {
     const pos = placed.get(groupNodeId(p))!;
@@ -275,7 +284,7 @@ function buildLayout(
     };
   });
 
-  return { frames, groupNodes, clauseNodes, edges };
+  return { frames, frameLabels, groupNodes, clauseNodes, edges };
 }
 
 type MatchState = "match" | "premise" | "dim" | "normal";
@@ -504,6 +513,7 @@ function GraphInner({
       ...layout.frames.map((n) =>
         groupHits.has(n.data.path) ? { ...n, style: { ...n.style, ...highlightStyle("match", 16) } } : n,
       ),
+      ...layout.frameLabels,
       ...layout.groupNodes.map((n) => ({
         ...n,
         style: { ...n.style, ...highlightStyle(state(groupHits.has(n.data.path)), 12) },
