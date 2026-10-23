@@ -10,6 +10,7 @@ import { SearchBox } from "./SearchBox";
 const clauses: ClauseData[] = [
   { id: "a", text: "Courage is a virtue", support: null, category: "Ethics/Virtues/Courage" },
   { id: "b", text: "Patience is a virtue", support: null, category: "Ethics/Virtues" },
+  { id: "c", text: "Fear can be overcome", support: "Aristotle links this to courage.", category: null },
 ];
 const paths = allCategoryPaths(clauses);
 const matchesFor = (q: string) => searchMatches(clauses, paths, q);
@@ -78,4 +79,12 @@ test("after clearing, typing again reopens the dropdown and the arrow keys still
   assert.ok(list());
   await press(input, "ArrowDown");
   assert.equal(list()!.querySelector('[aria-selected="true"]')?.textContent, "Patience is a virtueVirtues <- Ethics");
+});
+
+test("a match found only in sidebar notes shows the matching notes text", async () => {
+  const { input, list } = await mount();
+  await type(input, "aristotle");
+  const options = list()!.querySelectorAll('[role="option"]');
+  assert.equal(options.length, 1);
+  assert.equal(options[0].textContent, "Fear can be overcomeNotes: Aristotle links this to courage.");
 });

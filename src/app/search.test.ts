@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { allCategoryPaths, type ClauseData } from "./graphGroups";
-import { categoryTrail, enterTarget, matchLabel, matchTrail, moveHighlight, searchMatches } from "./search";
+import { categoryTrail, enterTarget, matchLabel, matchTrail, moveHighlight, notesSnippet, searchMatches } from "./search";
 
 const clause = (id: string, text: string, category: string | null): ClauseData => ({ id, text, support: null, category });
 const clauses = [
@@ -24,6 +24,32 @@ test("matches clause text and category names case-insensitively, categories firs
 test("a category matches on its own name, not its parents'", () => {
   const matches = searchMatches(clauses, paths, "ethics");
   assert.deepEqual(matches.map(matchLabel), ["Ethics"]);
+});
+
+test("clauses whose sidebar notes match come after title matches, with a snippet", () => {
+  const withNotes = [
+    { id: "n", text: "Fear can be overcome", support: "Aristotle ties this to\n\ncourage on the battlefield.", category: null },
+    ...clauses,
+  ];
+  const matches = searchMatches(withNotes, allCategoryPaths(withNotes), "courage");
+  assert.deepEqual(matches.map(matchLabel), ["Courage", "Courage is a mean between cowardice and rashness", "Fear can be overcome"]);
+  const notesHit = matches[2];
+  assert.equal(notesHit.kind === "clause" && notesHit.snippet, "Aristotle ties this to courage on the battlefield.");
+  assert.equal(matches[1].kind === "clause" && matches[1].snippet, undefined);
+});
+
+test("a clause matching in both title and notes is listed once, as a title match", () => {
+  const both = [{ id: "x", text: "Courage matters", support: "Courage again", category: null }];
+  const matches = searchMatches(both, [], "courage");
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].kind === "clause" && matches[0].snippet, undefined);
+});
+
+test("a notes snippet trims long notes around the hit", () => {
+  const long = `${"a".repeat(50)} needle ${"b".repeat(50)}`;
+  assert.equal(notesSnippet(long, "needle"), `…${"a".repeat(29)} needle ${"b".repeat(29)}…`);
+  assert.equal(notesSnippet("short needle", "needle"), "short needle");
+  assert.equal(notesSnippet("nothing here", "needle"), undefined);
 });
 
 test("trail reads most specific category first", () => {
