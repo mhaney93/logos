@@ -24,7 +24,7 @@ import { NoteBadges } from "./components/NoteBadges";
 import { noteKinds, type NoteKind } from "@/lib/notes";
 import { EDGE_HIT_WIDTH, edgeEmphasis } from "@/lib/edges";
 import { CLAUSE_MIN_HEIGHT, CLAUSE_WIDTH, layoutMap } from "./graphLayout";
-import { categoryLabelNode, type CategoryLabelData } from "./categoryLabel";
+import { CATEGORY_NAME_Z, categoryLabelNode, type CategoryLabelData } from "./categoryLabel";
 import {
   allCategoryPaths,
   categoryName,
@@ -257,6 +257,7 @@ function buildLayout(
       position: { x: pos.x - CLAUSE_WIDTH / 2, y: pos.y - CLAUSE_MIN_HEIGHT / 2 },
       data: { path: p, count: counts.get(p) ?? 0, accent: color.get(p)!, onToggle: () => toggleCategory(p) },
       style: { width: CLAUSE_WIDTH, height: CLAUSE_MIN_HEIGHT, pointerEvents: "auto" as const },
+      zIndex: CATEGORY_NAME_Z,
     };
   });
 

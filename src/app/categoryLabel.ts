@@ -3,6 +3,8 @@ import { RAISED_EDGE_Z } from "@/lib/edges";
 import { clusterId } from "./graphGroups";
 import { FRAME_HEADER, type Box } from "./graphLayout";
 
+export const CATEGORY_NAME_Z = RAISED_EDGE_Z + 1;
+
 export type CategoryLabelData = { path: string; accent: string; onToggle: () => void };
 
 // Frames sit beneath the lines, and a line drawn across a frame's name would swallow
@@ -15,7 +17,7 @@ export function categoryLabelNode(path: string, box: Box, accent: string, onTogg
     position: { x: box.left, y: box.top },
     data: { path, accent, onToggle },
     style: { width: box.right - box.left, height: FRAME_HEADER, pointerEvents: "none" },
-    zIndex: RAISED_EDGE_Z + 1,
+    zIndex: CATEGORY_NAME_Z,
     selectable: false,
   };
 }
