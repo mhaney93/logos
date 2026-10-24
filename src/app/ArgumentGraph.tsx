@@ -41,6 +41,8 @@ import {
   visibleChains,
   type ArgumentData,
   type ClauseData,
+  collapseArguments,
+  hasOpenArguments,
   type GraphView,
 } from "./graphGroups";
 
@@ -364,6 +366,19 @@ function GraphInner({
     });
   }
 
+  function collapseAll() {
+    if (busyLabel || !hasOpenArguments(view)) return;
+    const next = collapseArguments(view);
+    setBusyLabel("Collapsing…");
+    afterPaint(() => {
+      setView(next);
+      afterPaint(() => {
+        fitView();
+        setBusyLabel(null);
+      });
+    });
+  }
+
   const nodeIn = useCallback(
     (v: GraphView, id: string) => {
       const { frames, groupNodes, clauseNodes } = buildLayout(clauses, argumentsList, v, () => {}, () => {}, () => {});
@@ -615,7 +630,7 @@ function GraphInner({
               <FullscreenIcon exit={isFullscreen} />
             </ControlButton>
           </Controls>
-          <Panel position="top-right">
+          <Panel position="top-right" className="flex">
             <button
               type="button"
               onClick={toggleShowAll}
@@ -625,6 +640,15 @@ function GraphInner({
             >
               {busyLabel && <Spinner />}
               {busyLabel ?? (showingAll ? "Back to home" : "Expand all")}
+            </button>
+            <button
+              type="button"
+              onClick={collapseAll}
+              disabled={busyLabel !== null || !hasOpenArguments(view)}
+              aria-busy={busyLabel !== null}
+              className="ml-2 flex items-center gap-1.5 rounded-full border border-black/[.08] bg-background px-3 py-1 text-xs font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/[.145]"
+            >
+              Collapse all
             </button>
           </Panel>
         </ReactFlow>
