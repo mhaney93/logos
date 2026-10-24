@@ -41,6 +41,8 @@ import {
   visibleChains,
   type ArgumentData,
   type ClauseData,
+  collapseArguments,
+  hasOpenArguments,
   type GraphView,
 } from "./graphGroups";
 
@@ -345,23 +347,32 @@ function GraphInner({
   const { collapsed } = view;
   const showingAll = collapsed.size === 0 && [...premisesOf.keys()].every((id) => view.open.has(id));
 
-  const [busyLabel, setBusyLabel] = useState<string | null>(null);
+  const [busy, setBusy] = useState<{ action: "showAll" | "collapse"; label: string } | null>(null);
 
   // Laying out the whole map can block for seconds, so paint the busy state first
   // and only clear it once the new layout has rendered.
-  function toggleShowAll() {
-    if (busyLabel) return;
-    const next = showingAll
-      ? homeView()
-      : { collapsed: new Set<string>(), open: new Set(premisesOf.keys()), pinned: new Set<string>(), below: new Set(conclusionsOf.keys()) };
-    setBusyLabel(showingAll ? "Collapsing…" : "Expanding…");
+  function applyWithBusy(next: GraphView, nextBusy: NonNullable<typeof busy>) {
+    setBusy(nextBusy);
     afterPaint(() => {
       setView(next);
       afterPaint(() => {
         fitView();
-        setBusyLabel(null);
+        setBusy(null);
       });
     });
+  }
+
+  function toggleShowAll() {
+    if (busy) return;
+    const next = showingAll
+      ? homeView()
+      : { collapsed: new Set<string>(), open: new Set(premisesOf.keys()), pinned: new Set<string>(), below: new Set(conclusionsOf.keys()) };
+    applyWithBusy(next, { action: "showAll", label: showingAll ? "Collapsing…" : "Expanding…" });
+  }
+
+  function collapseAll() {
+    if (busy || !hasOpenArguments(view)) return;
+    applyWithBusy(collapseArguments(view), { action: "collapse", label: "Collapsing…" });
   }
 
   const nodeIn = useCallback(
@@ -615,27 +626,37 @@ function GraphInner({
               <FullscreenIcon exit={isFullscreen} />
             </ControlButton>
           </Controls>
-          <Panel position="top-right">
+          <Panel position="top-right" className="flex">
             <button
               type="button"
               onClick={toggleShowAll}
-              disabled={busyLabel !== null}
-              aria-busy={busyLabel !== null}
+              disabled={busy !== null}
+              aria-busy={busy?.action === "showAll"}
               className="flex items-center gap-1.5 rounded-full border border-black/[.08] bg-background px-3 py-1 text-xs font-semibold shadow-sm disabled:cursor-wait dark:border-white/[.145]"
             >
-              {busyLabel && <Spinner />}
-              {busyLabel ?? (showingAll ? "Back to home" : "Expand all")}
+              {busy?.action === "showAll" && <Spinner />}
+              {busy?.action === "showAll" ? busy.label : showingAll ? "Back to home" : "Expand all"}
+            </button>
+            <button
+              type="button"
+              onClick={collapseAll}
+              disabled={busy !== null || !hasOpenArguments(view)}
+              aria-busy={busy?.action === "collapse"}
+              className="ml-2 flex items-center gap-1.5 rounded-full border border-black/[.08] bg-background px-3 py-1 text-xs font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/[.145]"
+            >
+              {busy?.action === "collapse" && <Spinner />}
+              {busy?.action === "collapse" ? busy.label : "Collapse all"}
             </button>
           </Panel>
         </ReactFlow>
-        {busyLabel && (
+        {busy && (
           <div
             role="status"
             className="absolute inset-0 z-10 flex cursor-wait items-center justify-center bg-background/60"
           >
             <span className="flex items-center gap-2 rounded-full border border-black/[.08] bg-background px-4 py-2 text-sm font-semibold shadow-sm dark:border-white/[.145]">
               <Spinner />
-              {busyLabel}
+              {busy.label}
             </span>
           </div>
         )}

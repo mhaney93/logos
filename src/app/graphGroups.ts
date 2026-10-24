@@ -91,6 +91,15 @@ export type GraphView = {
   below: Set<string>;
 };
 
+// Close every argument so only final conclusions remain, keeping category folds as they are.
+export function collapseArguments(view: GraphView): GraphView {
+  return { collapsed: new Set(view.collapsed), open: new Set(), pinned: new Set(), below: new Set() };
+}
+
+export function hasOpenArguments(view: GraphView) {
+  return view.open.size > 0 || view.pinned.size > 0 || view.below.size > 0;
+}
+
 export function premisesByConclusion(argumentsList: ArgumentData[]) {
   return new Map(argumentsList.map((a) => [a.conclusionId, a.premises.map((p) => p.clauseId)]));
 }
