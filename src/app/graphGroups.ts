@@ -91,13 +91,31 @@ export type GraphView = {
   below: Set<string>;
 };
 
-// Close every argument so only final conclusions remain, keeping category folds as they are.
-export function collapseArguments(view: GraphView): GraphView {
-  return { collapsed: new Set(view.collapsed), open: new Set(), pinned: new Set(), below: new Set() };
+// Home: everything folded to the top-level branches, like an outline. This is the fresh-load view.
+export function homeView(allPaths: string[]): GraphView {
+  return { collapsed: new Set(allPaths), open: new Set(), pinned: new Set(), below: new Set() };
 }
 
-export function hasOpenArguments(view: GraphView) {
-  return view.open.size > 0 || view.pinned.size > 0 || view.below.size > 0;
+export function isHomeView(view: GraphView, allPaths: string[]) {
+  return (
+    view.open.size === 0 &&
+    view.pinned.size === 0 &&
+    view.below.size === 0 &&
+    view.collapsed.size === allPaths.length &&
+    allPaths.every((p) => view.collapsed.has(p))
+  );
+}
+
+export function expandedView(premisesOf: Map<string, string[]>, conclusionsOf: Map<string, string[]>): GraphView {
+  return { collapsed: new Set(), open: new Set(premisesOf.keys()), pinned: new Set(), below: new Set(conclusionsOf.keys()) };
+}
+
+export function isExpandedView(view: GraphView, premisesOf: Map<string, string[]>, conclusionsOf: Map<string, string[]>) {
+  return (
+    view.collapsed.size === 0 &&
+    [...premisesOf.keys()].every((id) => view.open.has(id)) &&
+    [...conclusionsOf.keys()].every((id) => view.below.has(id))
+  );
 }
 
 export function premisesByConclusion(argumentsList: ArgumentData[]) {

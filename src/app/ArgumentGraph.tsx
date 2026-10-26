@@ -41,8 +41,10 @@ import {
   visibleChains,
   type ArgumentData,
   type ClauseData,
-  collapseArguments,
-  hasOpenArguments,
+  expandedView,
+  homeView,
+  isExpandedView,
+  isHomeView,
   type GraphView,
 } from "./graphGroups";
 
@@ -338,16 +340,12 @@ function GraphInner({
   const allPaths = useMemo(() => allCategoryPaths(clauses), [clauses]);
   const premisesOf = useMemo(() => premisesByConclusion(argumentsList), [argumentsList]);
   const conclusionsOf = useMemo(() => conclusionsByPremise(argumentsList), [argumentsList]);
-  // Home: everything folded to the top-level branches, like an outline.
-  const homeView = useCallback(
-    (): GraphView => ({ collapsed: new Set(allPaths), open: new Set(), pinned: new Set(), below: new Set() }),
-    [allPaths],
-  );
-  const [view, setView] = useState<GraphView>(homeView);
+  const [view, setView] = useState<GraphView>(() => homeView(allPaths));
   const { collapsed } = view;
-  const showingAll = collapsed.size === 0 && [...premisesOf.keys()].every((id) => view.open.has(id));
+  const expanded = isExpandedView(view, premisesOf, conclusionsOf);
+  const atHome = isHomeView(view, allPaths);
 
-  const [busy, setBusy] = useState<{ action: "showAll" | "collapse"; label: string } | null>(null);
+  const [busy, setBusy] = useState<{ action: "expand" | "collapse"; label: string } | null>(null);
 
   // Laying out the whole map can block for seconds, so paint the busy state first
   // and only clear it once the new layout has rendered.
@@ -362,17 +360,14 @@ function GraphInner({
     });
   }
 
-  function toggleShowAll() {
-    if (busy) return;
-    const next = showingAll
-      ? homeView()
-      : { collapsed: new Set<string>(), open: new Set(premisesOf.keys()), pinned: new Set<string>(), below: new Set(conclusionsOf.keys()) };
-    applyWithBusy(next, { action: "showAll", label: showingAll ? "Collapsing…" : "Expanding…" });
+  function expandAll() {
+    if (busy || expanded) return;
+    applyWithBusy(expandedView(premisesOf, conclusionsOf), { action: "expand", label: "Expanding…" });
   }
 
   function collapseAll() {
-    if (busy || !hasOpenArguments(view)) return;
-    applyWithBusy(collapseArguments(view), { action: "collapse", label: "Collapsing…" });
+    if (busy || atHome) return;
+    applyWithBusy(homeView(allPaths), { action: "collapse", label: "Collapsing…" });
   }
 
   const nodeIn = useCallback(
@@ -629,18 +624,18 @@ function GraphInner({
           <Panel position="top-right" className="flex">
             <button
               type="button"
-              onClick={toggleShowAll}
-              disabled={busy !== null}
-              aria-busy={busy?.action === "showAll"}
-              className="flex items-center gap-1.5 rounded-full border border-black/[.08] bg-background px-3 py-1 text-xs font-semibold shadow-sm disabled:cursor-wait dark:border-white/[.145]"
+              onClick={expandAll}
+              disabled={busy !== null || expanded}
+              aria-busy={busy?.action === "expand"}
+              className="flex items-center gap-1.5 rounded-full border border-black/[.08] bg-background px-3 py-1 text-xs font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/[.145]"
             >
-              {busy?.action === "showAll" && <Spinner />}
-              {busy?.action === "showAll" ? busy.label : showingAll ? "Back to home" : "Expand all"}
+              {busy?.action === "expand" && <Spinner />}
+              {busy?.action === "expand" ? busy.label : "Expand all"}
             </button>
             <button
               type="button"
               onClick={collapseAll}
-              disabled={busy !== null || !hasOpenArguments(view)}
+              disabled={busy !== null || atHome}
               aria-busy={busy?.action === "collapse"}
               className="ml-2 flex items-center gap-1.5 rounded-full border border-black/[.08] bg-background px-3 py-1 text-xs font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/[.145]"
             >
