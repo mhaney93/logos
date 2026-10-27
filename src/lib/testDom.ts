@@ -5,3 +5,5 @@ export const dom = new JSDOM("<!doctype html><body></body>");
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
 // jsdom doesn't implement scrolling.
 dom.window.HTMLElement.prototype.scrollIntoView = () => {};
+// Components import stylesheets that only the Next bundler understands.
+require.extensions[".css"] = () => {};
