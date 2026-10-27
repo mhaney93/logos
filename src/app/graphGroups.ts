@@ -96,16 +96,6 @@ export function homeView(allPaths: string[]): GraphView {
   return { collapsed: new Set(allPaths), open: new Set(), pinned: new Set(), below: new Set() };
 }
 
-export function isHomeView(view: GraphView, allPaths: string[]) {
-  return (
-    view.open.size === 0 &&
-    view.pinned.size === 0 &&
-    view.below.size === 0 &&
-    view.collapsed.size === allPaths.length &&
-    allPaths.every((p) => view.collapsed.has(p))
-  );
-}
-
 export function expandedView(premisesOf: Map<string, string[]>, conclusionsOf: Map<string, string[]>): GraphView {
   return { collapsed: new Set(), open: new Set(premisesOf.keys()), pinned: new Set(), below: new Set(conclusionsOf.keys()) };
 }

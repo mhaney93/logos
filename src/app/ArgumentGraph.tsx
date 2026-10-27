@@ -44,7 +44,6 @@ import {
   expandedView,
   homeView,
   isExpandedView,
-  isHomeView,
   type GraphView,
 } from "./graphGroups";
 
@@ -323,9 +322,11 @@ function highlightStyle(matchState: MatchState, radius: number) {
 function GraphInner({
   clauses,
   arguments: argumentsList,
+  onReset,
 }: {
   clauses: ClauseData[];
   arguments: ArgumentData[];
+  onReset: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -343,7 +344,6 @@ function GraphInner({
   const [view, setView] = useState<GraphView>(() => homeView(allPaths));
   const { collapsed } = view;
   const expanded = isExpandedView(view, premisesOf, conclusionsOf);
-  const atHome = isHomeView(view, allPaths);
 
   const [busy, setBusy] = useState<{ action: "expand" | "collapse"; label: string } | null>(null);
 
@@ -365,9 +365,11 @@ function GraphInner({
     applyWithBusy(expandedView(premisesOf, conclusionsOf), { action: "expand", label: "Expanding…" });
   }
 
+  // Remounting reruns the fresh-load path, so search, selection, and camera reset too.
   function collapseAll() {
-    if (busy || atHome) return;
-    applyWithBusy(homeView(allPaths), { action: "collapse", label: "Collapsing…" });
+    if (busy) return;
+    setBusy({ action: "collapse", label: "Collapsing…" });
+    afterPaint(onReset);
   }
 
   const nodeIn = useCallback(
@@ -635,7 +637,7 @@ function GraphInner({
             <button
               type="button"
               onClick={collapseAll}
-              disabled={busy !== null || atHome}
+              disabled={busy !== null}
               aria-busy={busy?.action === "collapse"}
               className="ml-2 flex items-center gap-1.5 rounded-full border border-black/[.08] bg-background px-3 py-1 text-xs font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/[.145]"
             >
@@ -678,6 +680,8 @@ export function ArgumentGraph({
   clauses: ClauseData[];
   arguments: ArgumentData[];
 }) {
+  const [generation, setGeneration] = useState(0);
+
   if (clauses.length === 0) {
     return (
       <p className="text-center text-sm text-zinc-500">
@@ -687,8 +691,8 @@ export function ArgumentGraph({
   }
 
   return (
-    <ReactFlowProvider>
-      <GraphInner clauses={clauses} arguments={argumentsList} />
+    <ReactFlowProvider key={generation}>
+      <GraphInner clauses={clauses} arguments={argumentsList} onReset={() => setGeneration((g) => g + 1)} />
     </ReactFlowProvider>
   );
 }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { expandedView, homeView, isExpandedView, isHomeView, type GraphView } from "./graphGroups";
+import { expandedView, homeView, isExpandedView } from "./graphGroups";
 
 const allPaths = ["Ethics", "Ethics/Virtues", "Logic"];
 const premisesOf = new Map([["c1", ["p1", "p2"]]]);
@@ -10,17 +10,6 @@ test("homeView folds every category and closes every argument, like a fresh load
   const home = homeView(allPaths);
   assert.deepEqual([...home.collapsed], allPaths);
   assert.equal(home.open.size + home.pinned.size + home.below.size, 0);
-  assert.equal(isHomeView(home, allPaths), true);
-});
-
-test("isHomeView is false once anything is unfolded, opened, pinned, or shown below", () => {
-  const home = homeView(allPaths);
-  const unfolded: GraphView = { ...home, collapsed: new Set(["Ethics"]) };
-  assert.equal(isHomeView(unfolded, allPaths), false);
-  assert.equal(isHomeView({ ...home, open: new Set(["c1"]) }, allPaths), false);
-  assert.equal(isHomeView({ ...home, pinned: new Set(["c1"]) }, allPaths), false);
-  assert.equal(isHomeView({ ...home, below: new Set(["p1"]) }, allPaths), false);
-  assert.equal(isHomeView(expandedView(premisesOf, conclusionsOf), allPaths), false);
 });
 
 test("expandedView unfolds every category and opens every argument both ways", () => {
