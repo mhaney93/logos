@@ -158,15 +158,17 @@ export function visibleChains(clauses: ClauseData[], argumentsList: ArgumentData
     if (view.open.has(id)) stack.push(...(premisesOf.get(id) ?? []));
   }
 
-  // Arguments ending inside a folded category keep linking it to whatever else is
-  // on the map, so folded categories still show how they connect.
+  // Arguments ending inside a folded category keep linking it to other folded
+  // categories, so folded categories still show how they connect. An unfolded
+  // clause links into one only once its bottom dot asks for its conclusions.
   const folded = (id: string) => collapsedAncestor(categoryOf.get(id) ?? null, view.collapsed) !== null;
   const onMap = (id: string) => shown.has(id) || folded(id);
+  const linksIntoFold = (id: string) => folded(id) || (shown.has(id) && view.below.has(id));
   const visibleArguments = argumentsList
     .map((a) => {
       if (shown.has(a.conclusionId) && view.open.has(a.conclusionId)) return a;
       if (!folded(a.conclusionId)) return null;
-      return { ...a, premises: a.premises.filter((p) => onMap(p.clauseId)) };
+      return { ...a, premises: a.premises.filter((p) => linksIntoFold(p.clauseId)) };
     })
     .filter((a): a is ArgumentData => a !== null && a.premises.length > 0);
 
