@@ -19,7 +19,7 @@ export function ClauseSupportSidebar({
 }) {
   const [value, setValue] = useState(support ?? "");
   // Notes show as plain text until Edit: dictionary extensions ignore words inside editable fields.
-  const [editing, setEditing] = useState(!support);
+  const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -35,7 +35,10 @@ export function ClauseSupportSidebar({
     if (password === null) return;
     startTransition(async () => {
       const result = await updateClauseDetails(id, value, category ?? "", password);
-      if (unwrapActionResult(result) !== null) setEditing(false);
+      const updated = unwrapActionResult(result);
+      if (updated === null) return;
+      setValue(updated.support ?? "");
+      setEditing(false);
     });
   }
 
@@ -80,7 +83,7 @@ export function ClauseSupportSidebar({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder="Add supporting explanation, evidence, or reasoning..."
-              autoFocus={!!support}
+              autoFocus
               className="flex-1 min-h-40 resize-none rounded-lg border border-black/[.08] px-3 py-2 text-sm dark:border-white/[.145]"
             />
           ) : (
