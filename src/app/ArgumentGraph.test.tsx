@@ -128,6 +128,7 @@ test("closing a stacked sidebar restores the sidebar and map beneath it", async 
   };
 
   await act(async () => node(container, "Be courageous").click());
+  await act(async () => button(top() as HTMLElement, "Edit").click());
   await act(async () => setNotes("Unsaved thought"));
   await act(async () => button(top() as HTMLElement, "Show Argument").click());
   await settle();
