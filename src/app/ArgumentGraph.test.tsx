@@ -60,3 +60,40 @@ test("Collapse all leaves the page exactly as a fresh load renders it", async ()
   await settle();
   assert.equal(html(container), fresh);
 });
+
+test("Show Argument maps a conclusion's premises and stacks their sidebars", async () => {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  await act(async () => createRoot(container).render(<ArgumentGraph clauses={clauses} arguments={argumentsList} />));
+  await settle();
+  await act(async () => button(container, "Ethics ▸").click());
+  await settle();
+
+  const node = (root: Element, text: string) =>
+    [...root.querySelectorAll<HTMLElement>(".react-flow__node-clause")].find((n) => n.textContent?.includes(text))!;
+  const escape = () => act(async () => dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape" })));
+  const sidebar = () => container.querySelector("aside")?.querySelector("p")?.textContent;
+  const map = () => container.querySelector('section[aria-label="Argument map"]');
+
+  await act(async () => node(container, "Courage is good").click());
+  await act(async () => button(container, "Show Argument").click());
+  await settle();
+  assert.deepEqual(
+    [...map()!.querySelectorAll(".clause-node-text")].map((n) => n.textContent).sort(),
+    ["Courage is a virtue", "Courage is good", "Virtues are good"],
+  );
+
+  await act(async () => node(map()!, "Courage is a virtue").click());
+  assert.equal(sidebar(), "Courage is a virtue");
+  assert.equal(container.querySelectorAll("aside").length, 1, "the sidebar beneath is hidden");
+  assert.equal(button(container, "Show Argument"), undefined, "a clause no argument concludes has nothing to show");
+
+  await escape();
+  assert.equal(sidebar(), "Courage is good");
+  assert.ok(map());
+  await escape();
+  assert.equal(map(), null);
+  assert.equal(sidebar(), "Courage is good");
+  await escape();
+  assert.equal(container.querySelector("aside"), null);
+});

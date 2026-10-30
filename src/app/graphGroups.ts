@@ -134,6 +134,28 @@ export function premiseChain(ids: Iterable<string>, premisesOf: Map<string, stri
   return seen;
 }
 
+// One conclusion with everything it rests on, all the way up, and the arguments
+// linking them — nothing that is itself built on the conclusion.
+export function argumentTree(conclusionId: string, clauses: ClauseData[], argumentsList: ArgumentData[]) {
+  const ids = new Set([conclusionId]);
+  const used = new Set<string>();
+  const stack = [conclusionId];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    for (const argument of argumentsList.filter((a) => a.conclusionId === id)) {
+      used.add(argument.id);
+      for (const p of argument.premises) {
+        if (!ids.has(p.clauseId)) stack.push(p.clauseId);
+        ids.add(p.clauseId);
+      }
+    }
+  }
+  return {
+    clauses: clauses.filter((c) => ids.has(c.id)),
+    arguments: argumentsList.filter((a) => used.has(a.id)),
+  };
+}
+
 // An open category shows only its final conclusions — clauses no argument in the
 // same category uses as a premise — plus whatever chains have been opened from them.
 // Clauses in folded categories all stay so their category's node still appears.

@@ -6,24 +6,32 @@ import {
   ControlButton,
   Controls,
   Handle,
-  MarkerType,
   Panel,
   Position,
   ReactFlowProvider,
   useReactFlow,
-  type Edge,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { ClauseSupportSidebar } from "./ClauseSupportSidebar";
+import { ArgumentMap } from "./ArgumentMap";
 import { afterPaint } from "./afterPaint";
 import { SearchBox } from "./SearchBox";
 import { useMiddleClickAutoscroll } from "./useMiddleClickAutoscroll";
 import { normalizeQuery, searchMatches, type SearchMatch } from "./search";
-import { NoteBadges } from "./components/NoteBadges";
-import { noteKinds, type NoteKind } from "@/lib/notes";
-import { EDGE_HIT_WIDTH, edgeEmphasis } from "@/lib/edges";
+import { noteKinds } from "@/lib/notes";
+import { edgeEmphasis } from "@/lib/edges";
+import {
+  argumentColors,
+  argumentEdges,
+  categoryColors,
+  ClauseNode,
+  clauseNodeStyle,
+  estimateClauseHeight,
+  type ClauseNodeData,
+  type MatchState,
+} from "./clauseNodes";
 import { CLAUSE_MIN_HEIGHT, CLAUSE_WIDTH, layoutMap } from "./graphLayout";
 import { CATEGORY_NAME_Z, categoryLabelNode, type CategoryLabelData } from "./categoryLabel";
 import {
@@ -47,76 +55,8 @@ import {
   type GraphView,
 } from "./graphGroups";
 
-const CLAUSE_PADDING = 20; // 10px top + 10px bottom
-const CLAUSE_CHARS_PER_LINE = 32; // rough fit for 240px width at 12px font
-const CLAUSE_LINE_HEIGHT = 16;
-
-function estimateClauseHeight(text: string) {
-  const lines = Math.max(1, Math.ceil(text.length / CLAUSE_CHARS_PER_LINE));
-  return Math.max(CLAUSE_MIN_HEIGHT, CLAUSE_PADDING + lines * CLAUSE_LINE_HEIGHT);
-}
-
-type ClauseNodeData = {
-  label: string;
-  accent?: string;
-  notes: NoteKind[];
-  hasPremises: boolean;
-  open: boolean;
-  onToggleChain: () => void;
-  hasConclusions: boolean;
-  below: boolean;
-  onToggleBelow: () => void;
-};
 type GroupNodeData = { path: string; count: number; accent: string; onToggle: () => void };
 type FrameNodeData = { path: string; accent: string };
-
-function ChainDot({ filled, label, onClick, className }: { filled: boolean; label: string; onClick: () => void; className: string }) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      title={label}
-      aria-label={label}
-      className={`nodrag nopan absolute left-1/2 z-10 h-4 w-4 -translate-x-1/2 cursor-pointer ${className}`}
-      style={{ pointerEvents: "auto" }}
-    >
-      {/* SVG fill, unlike a CSS background, survives dark-mode extensions recoloring it. */}
-      <svg viewBox="0 0 16 16" className="h-full w-full">
-        <circle cx="8" cy="8" r="6.5" strokeWidth="2" stroke="currentColor" fill={filled ? "currentColor" : "var(--background)"} />
-      </svg>
-    </button>
-  );
-}
-
-function ClauseNode({ data }: NodeProps<Node<ClauseNodeData>>) {
-  return (
-    <>
-      <Handle type="target" position={Position.Top} />
-      {data.hasPremises && (
-        <ChainDot
-          filled={data.open}
-          label={data.open ? "Hide premises" : "Show premises"}
-          onClick={data.onToggleChain}
-          className="-top-2"
-        />
-      )}
-      <span className="nodrag nopan clause-node-text">{data.label}</span>
-      <NoteBadges kinds={data.notes} className="absolute -top-2 right-2" />
-      {data.hasConclusions && (
-        <ChainDot
-          filled={data.below}
-          label={data.below ? "Hide conclusions" : "Show conclusions"}
-          onClick={data.onToggleBelow}
-          className="-bottom-2"
-        />
-      )}
-      <Handle type="source" position={Position.Bottom} />
-    </>
-  );
-}
 
 function GroupNode({ data }: NodeProps<Node<GroupNodeData>>) {
   return (
@@ -187,12 +127,6 @@ function FullscreenIcon({ exit }: { exit: boolean }) {
   );
 }
 
-// Golden-angle hue steps keep neighboring arguments' colors far apart
-// no matter how many arguments exist.
-function hueColor(index: number) {
-  return `hsl(${(index * 137.508) % 360}, 70%, 50%)`;
-}
-
 function buildLayout(
   allClauses: ClauseData[],
   allArguments: ArgumentData[],
@@ -201,14 +135,11 @@ function buildLayout(
   toggleChain: (id: string) => void,
   toggleBelow: (id: string) => void,
 ) {
-  const paths = allCategoryPaths(allClauses);
-  const color = new Map(paths.map((p, i) => [p, hueColor(i + 3)]));
+  const color = categoryColors(allClauses);
   const counts = clauseCounts(allClauses);
   const premisesOf = premisesByConclusion(allArguments);
   const conclusionsOf = conclusionsByPremise(allArguments);
-  // allArguments is newest-first; count from the oldest so adding an argument,
-  // or opening a chain, doesn't recolor the existing ones.
-  const argumentColor = new Map(allArguments.map((a, i) => [a.id, hueColor(allArguments.length - 1 - i)]));
+  const argumentColor = argumentColors(allArguments);
   const shown = visibleChains(allClauses, allArguments, view);
   const { clauses, foldedPaths, arguments: argumentsList } = collapseCategories(
     shown.clauses,
@@ -217,24 +148,7 @@ function buildLayout(
   );
 
   const heights = new Map(clauses.map((c) => [c.id, estimateClauseHeight(c.text)]));
-  const edgeKeys = new Set<string>();
-  const edges: Edge[] = [];
-  argumentsList.forEach((argument) => {
-    const edgeColor = argumentColor.get(argument.id)!;
-    for (const premise of argument.premises) {
-      const key = `${premise.clauseId}->${argument.conclusionId}`;
-      if (edgeKeys.has(key)) continue;
-      edgeKeys.add(key);
-      edges.push({
-        id: `e-${argument.id}-${premise.clauseId}`,
-        source: premise.clauseId,
-        target: argument.conclusionId,
-        markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor },
-        style: { stroke: edgeColor, strokeWidth: 2, opacity: 0.85 },
-        interactionWidth: EDGE_HIT_WIDTH,
-      });
-    }
-  });
+  const edges = argumentEdges(argumentsList, argumentColor);
 
   const { placed, frames: frameBoxes } = layoutMap(clauses, argumentsList, foldedPaths, heights);
 
@@ -292,28 +206,6 @@ function buildLayout(
   return { frames, frameLabels, groupNodes, clauseNodes, edges };
 }
 
-type MatchState = "match" | "premise" | "dim" | "normal";
-
-function clauseNodeStyle(matchState: MatchState, accent?: string) {
-  const base = {
-    padding: 10,
-    borderRadius: 10,
-    fontSize: 12,
-    lineHeight: 1.3,
-    textAlign: "center" as const,
-    background: "var(--background)",
-  };
-  if (matchState === "match") {
-    return { ...base, border: "2px solid #f59e0b", boxShadow: "0 0 0 3px rgba(245,158,11,0.25)" };
-  }
-  if (matchState === "premise") return { ...base, border: "2px dashed #f59e0b" };
-  return {
-    ...base,
-    border: accent ? `2px solid ${accent}` : "1px solid color-mix(in srgb, currentColor 15%, transparent)",
-    opacity: matchState === "dim" ? 0.3 : 1,
-  };
-}
-
 function highlightStyle(matchState: MatchState, radius: number) {
   if (matchState === "match") return { borderRadius: radius, boxShadow: "0 0 0 3px #f59e0b" };
   return { opacity: matchState === "dim" ? 0.3 : 1 };
@@ -329,7 +221,9 @@ function GraphInner({
   onReset: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Sidebars opened from the argument map stack on the one beneath; only the top shows.
+  const [sidebarStack, setSidebarStack] = useState<string[]>([]);
+  const [argumentId, setArgumentId] = useState<string | null>(null);
   const [boldEdgeId, setBoldEdgeId] = useState<string | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const { setCenter, fitView, getViewport, setViewport } = useReactFlow();
@@ -568,7 +462,30 @@ function GraphInner({
     reveal({ ...next, pinned: new Set([...view.pinned, clause.id]) }, clause.id);
   }
 
+  const selectedId = sidebarStack.at(-1) ?? null;
   const selected = clauses.find((c) => c.id === selectedId) ?? null;
+
+  const closeSidebar = useCallback(() => {
+    if (sidebarStack.length > 1) {
+      setSidebarStack(sidebarStack.slice(0, -1));
+      return;
+    }
+    setSidebarStack([]);
+    setArgumentId(null);
+  }, [sidebarStack]);
+
+  // Escape peels one layer at a time: stacked sidebars first, then the argument map,
+  // then the sidebar it was opened from. Capturing gets here before that sidebar's own handler.
+  useEffect(() => {
+    if (argumentId === null || sidebarStack.length > 1) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setArgumentId(null);
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [argumentId, sidebarStack.length]);
 
   return (
     <div
@@ -611,7 +528,7 @@ function GraphInner({
             if (node.type !== "clause") return;
             // Skip if the click was the tail end of a text-selection drag.
             if (window.getSelection()?.toString()) return;
-            setSelectedId(node.id);
+            setSidebarStack([node.id]);
           }}
         >
           <Controls showInteractive={false}>
@@ -659,14 +576,26 @@ function GraphInner({
         )}
       </div>
 
+      {argumentId && (
+        <ArgumentMap
+          conclusionId={argumentId}
+          clauses={clauses}
+          arguments={argumentsList}
+          activeId={selectedId}
+          onOpen={(id) => setSidebarStack((stack) => (stack.at(-1) === id ? stack : [...stack, id]))}
+          onClose={() => setArgumentId(null)}
+        />
+      )}
+
       {selected && (
         <ClauseSupportSidebar
-          key={selected.id}
+          key={`${sidebarStack.length}-${selected.id}`}
           id={selected.id}
           text={selected.text}
           support={selected.support}
           category={selected.category}
-          onClose={() => setSelectedId(null)}
+          onClose={closeSidebar}
+          onShowArgument={premisesOf.has(selected.id) ? () => setArgumentId(selected.id) : undefined}
         />
       )}
     </div>
