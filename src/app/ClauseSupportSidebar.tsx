@@ -24,6 +24,11 @@ export function ClauseSupportSidebar({
   const [value, setValue] = useState(support ?? "");
   // Notes show as plain text until Edit: dictionary extensions ignore words inside editable fields.
   const [editing, setEditing] = useState(false);
+  const [savedSupport, setSavedSupport] = useState(support);
+  if (support !== savedSupport) {
+    setSavedSupport(support);
+    if (value === (savedSupport ?? "")) setValue(support ?? "");
+  }
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {

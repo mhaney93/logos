@@ -580,7 +580,10 @@ function GraphInner({
           arguments={argumentsList}
           activeId={selectedId}
           onOpen={(id) =>
-            setSidebarStack((stack) => (stack.at(-1)!.clauseId === id ? stack : [...stack, { clauseId: id, mapId: argumentId }]))
+            setSidebarStack((stack) => {
+              const existing = stack.findIndex((layer) => layer.clauseId === id);
+              return existing === -1 ? [...stack, { clauseId: id, mapId: argumentId }] : stack.slice(0, existing + 1);
+            })
           }
           onClose={() => setArgumentId(null)}
         />

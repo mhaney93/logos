@@ -145,3 +145,27 @@ test("closing a stacked sidebar restores the sidebar and map beneath it", async 
   assert.equal(top().querySelector("textarea")!.value, "Unsaved thought");
   assert.equal(mapTitle(), "Argument for Be courageous");
 });
+
+test("opening a clause already in the stack pops back to its layer", async () => {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  await act(async () => createRoot(container).render(<ArgumentGraph clauses={clauses} arguments={argumentsList} />));
+  await settle();
+  await act(async () => button(container, "Ethics ▸").click());
+  await settle();
+
+  const node = (root: Element, text: string) =>
+    [...root.querySelectorAll<HTMLElement>(".react-flow__node-clause")].find((n) => n.textContent?.includes(text))!;
+  const map = () => container.querySelector('section[aria-label="Argument map"]')!;
+  const layers = () => [...container.querySelectorAll("aside")].map((a) => a.querySelector("p")?.textContent);
+
+  await act(async () => node(container, "Courage is good").click());
+  await act(async () => button(container, "Show Argument").click());
+  await settle();
+  await act(async () => node(map(), "Courage is a virtue").click());
+  assert.deepEqual(layers(), ["Courage is good", "Courage is a virtue"]);
+
+  await act(async () => node(map(), "Courage is good").click());
+  assert.deepEqual(layers(), ["Courage is good"]);
+  assert.ok(container.querySelector('section[aria-label="Argument map"]'));
+});
