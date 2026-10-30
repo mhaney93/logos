@@ -222,8 +222,8 @@ function GraphInner({
 }) {
   const [query, setQuery] = useState("");
   // Sidebars opened from the argument map stack on the one beneath; only the top shows.
-  const [sidebarStack, setSidebarStack] = useState<string[]>([]);
-  const [argumentId, setArgumentId] = useState<string | null>(null);
+  // Each layer remembers the map shown with it, so closing a layer restores the map beneath.
+  const [sidebarStack, setSidebarStack] = useState<{ clauseId: string; mapId: string | null }[]>([]);
   const [boldEdgeId, setBoldEdgeId] = useState<string | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const { setCenter, fitView, getViewport, setViewport } = useReactFlow();
@@ -462,17 +462,14 @@ function GraphInner({
     reveal({ ...next, pinned: new Set([...view.pinned, clause.id]) }, clause.id);
   }
 
-  const selectedId = sidebarStack.at(-1) ?? null;
-  const selected = clauses.find((c) => c.id === selectedId) ?? null;
+  const selectedId = sidebarStack.at(-1)?.clauseId ?? null;
+  const argumentId = sidebarStack.at(-1)?.mapId ?? null;
+  const setArgumentId = useCallback(
+    (mapId: string | null) => setSidebarStack((stack) => [...stack.slice(0, -1), { ...stack.at(-1)!, mapId }]),
+    [],
+  );
 
-  const closeSidebar = useCallback(() => {
-    if (sidebarStack.length > 1) {
-      setSidebarStack(sidebarStack.slice(0, -1));
-      return;
-    }
-    setSidebarStack([]);
-    setArgumentId(null);
-  }, [sidebarStack]);
+  const closeSidebar = useCallback(() => setSidebarStack((stack) => stack.slice(0, -1)), []);
 
   // Escape peels one layer at a time: stacked sidebars first, then the argument map,
   // then the sidebar it was opened from. Capturing gets here before that sidebar's own handler.
@@ -485,7 +482,7 @@ function GraphInner({
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [argumentId, sidebarStack.length]);
+  }, [argumentId, sidebarStack.length, setArgumentId]);
 
   return (
     <div
@@ -528,7 +525,7 @@ function GraphInner({
             if (node.type !== "clause") return;
             // Skip if the click was the tail end of a text-selection drag.
             if (window.getSelection()?.toString()) return;
-            setSidebarStack([node.id]);
+            setSidebarStack([{ clauseId: node.id, mapId: null }]);
           }}
         >
           <Controls showInteractive={false}>
@@ -582,22 +579,29 @@ function GraphInner({
           clauses={clauses}
           arguments={argumentsList}
           activeId={selectedId}
-          onOpen={(id) => setSidebarStack((stack) => (stack.at(-1) === id ? stack : [...stack, id]))}
+          onOpen={(id) =>
+            setSidebarStack((stack) => (stack.at(-1)!.clauseId === id ? stack : [...stack, { clauseId: id, mapId: argumentId }]))
+          }
           onClose={() => setArgumentId(null)}
         />
       )}
 
-      {selected && (
-        <ClauseSupportSidebar
-          key={`${sidebarStack.length}-${selected.id}`}
-          id={selected.id}
-          text={selected.text}
-          support={selected.support}
-          category={selected.category}
-          onClose={closeSidebar}
-          onShowArgument={premisesOf.has(selected.id) ? () => setArgumentId(selected.id) : undefined}
-        />
-      )}
+      {sidebarStack.map(({ clauseId }, i) => {
+        const clause = clauses.find((c) => c.id === clauseId);
+        if (!clause) return null;
+        return (
+          <ClauseSupportSidebar
+            key={`${i}-${clause.id}`}
+            id={clause.id}
+            text={clause.text}
+            support={clause.support}
+            category={clause.category}
+            hidden={i < sidebarStack.length - 1}
+            onClose={closeSidebar}
+            onShowArgument={premisesOf.has(clause.id) ? () => setArgumentId(clause.id) : undefined}
+          />
+        );
+      })}
     </div>
   );
 }

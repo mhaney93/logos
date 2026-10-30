@@ -9,6 +9,7 @@ export function ClauseSupportSidebar({
   text,
   support,
   category,
+  hidden = false,
   onClose,
   onShowArgument,
 }: {
@@ -16,6 +17,7 @@ export function ClauseSupportSidebar({
   text: string;
   support: string | null;
   category: string | null;
+  hidden?: boolean;
   onClose: () => void;
   onShowArgument?: () => void;
 }) {
@@ -25,12 +27,13 @@ export function ClauseSupportSidebar({
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
+    if (hidden) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [hidden, onClose]);
 
   function save() {
     const password = getActionPassword();
@@ -45,7 +48,7 @@ export function ClauseSupportSidebar({
   }
 
   return (
-    <>
+    <div hidden={hidden}>
       <div
         onClick={onClose}
         className="fixed inset-0 z-40 bg-black/20 dark:bg-black/50"
@@ -113,6 +116,6 @@ export function ClauseSupportSidebar({
           )}
         </div>
       </aside>
-    </>
+    </div>
   );
 }

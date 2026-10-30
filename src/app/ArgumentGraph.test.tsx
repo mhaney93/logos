@@ -26,6 +26,16 @@ const clauses: ClauseData[] = [
 ];
 const argumentsList: ArgumentData[] = [{ id: "arg", conclusionId: "c", premises: [{ clauseId: "a" }, { clauseId: "b" }] }];
 
+const chainClauses: ClauseData[] = [
+  ...clauses,
+  { id: "d", text: "Be courageous", support: null, category: "Ethics" },
+  { id: "e", text: "Do what is good", support: null, category: "Ethics" },
+];
+const chainArguments: ArgumentData[] = [
+  ...argumentsList,
+  { id: "arg2", conclusionId: "d", premises: [{ clauseId: "c" }, { clauseId: "e" }] },
+];
+
 // useId hands a remounted tree fresh ids; they only wire labels to lists, so ignore them.
 const html = (container: HTMLElement) => container.innerHTML.replace(/_r_\w+_/g, "_id_");
 
@@ -72,7 +82,7 @@ test("Show Argument maps a conclusion's premises and stacks their sidebars", asy
   const node = (root: Element, text: string) =>
     [...root.querySelectorAll<HTMLElement>(".react-flow__node-clause")].find((n) => n.textContent?.includes(text))!;
   const escape = () => act(async () => dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape" })));
-  const sidebar = () => container.querySelector("aside")?.querySelector("p")?.textContent;
+  const sidebar = () => container.querySelector("div:not([hidden]) > aside")?.querySelector("p")?.textContent;
   const map = () => container.querySelector('section[aria-label="Argument map"]');
 
   await act(async () => node(container, "Courage is good").click());
@@ -85,8 +95,9 @@ test("Show Argument maps a conclusion's premises and stacks their sidebars", asy
 
   await act(async () => node(map()!, "Courage is a virtue").click());
   assert.equal(sidebar(), "Courage is a virtue");
-  assert.equal(container.querySelectorAll("aside").length, 1, "the sidebar beneath is hidden");
-  assert.equal(button(container, "Show Argument"), undefined, "a clause no argument concludes has nothing to show");
+  assert.equal(container.querySelectorAll("div:not([hidden]) > aside").length, 1, "the sidebar beneath is hidden");
+  const visible = container.querySelector<HTMLElement>("div:not([hidden]) > aside")!;
+  assert.equal(button(visible, "Show Argument"), undefined, "a clause no argument concludes has nothing to show");
 
   await escape();
   assert.equal(sidebar(), "Courage is good");
@@ -96,4 +107,41 @@ test("Show Argument maps a conclusion's premises and stacks their sidebars", asy
   assert.equal(sidebar(), "Courage is good");
   await escape();
   assert.equal(container.querySelector("aside"), null);
+});
+
+test("closing a stacked sidebar restores the sidebar and map beneath it", async () => {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  await act(async () => createRoot(container).render(<ArgumentGraph clauses={chainClauses} arguments={chainArguments} />));
+  await settle();
+  await act(async () => button(container, "Ethics ▸").click());
+  await settle();
+
+  const node = (root: Element, text: string) =>
+    [...root.querySelectorAll<HTMLElement>(".react-flow__node-clause")].find((n) => n.textContent?.includes(text))!;
+  const top = () => container.querySelector("div:not([hidden]) > aside")!;
+  const mapTitle = () => container.querySelector('section[aria-label="Argument map"]')?.querySelector("p")?.textContent;
+  const setNotes = (text: string) => {
+    const textarea = top().querySelector("textarea")!;
+    Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, text);
+    textarea.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+  };
+
+  await act(async () => node(container, "Be courageous").click());
+  await act(async () => setNotes("Unsaved thought"));
+  await act(async () => button(top() as HTMLElement, "Show Argument").click());
+  await settle();
+  assert.equal(mapTitle(), "Argument for Be courageous");
+
+  const map = container.querySelector('section[aria-label="Argument map"]')!;
+  await act(async () => node(map, "Courage is good").click());
+  await act(async () => button(top() as HTMLElement, "Show Argument").click());
+  await settle();
+  assert.equal(mapTitle(), "Argument for Courage is good");
+
+  await act(async () => button(top() as HTMLElement, "Close").click());
+  await settle();
+  assert.equal(top().querySelector("p")?.textContent, "Be courageous");
+  assert.equal(top().querySelector("textarea")!.value, "Unsaved thought");
+  assert.equal(mapTitle(), "Argument for Be courageous");
 });
