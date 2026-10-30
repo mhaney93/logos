@@ -18,6 +18,8 @@ export function ClauseSupportSidebar({
   onClose: () => void;
 }) {
   const [value, setValue] = useState(support ?? "");
+  // Notes show as plain text until Edit: dictionary extensions ignore words inside editable fields.
+  const [editing, setEditing] = useState(!support);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -33,7 +35,7 @@ export function ClauseSupportSidebar({
     if (password === null) return;
     startTransition(async () => {
       const result = await updateClauseDetails(id, value, category ?? "", password);
-      unwrapActionResult(result);
+      if (unwrapActionResult(result) !== null) setEditing(false);
     });
   }
 
@@ -60,20 +62,37 @@ export function ClauseSupportSidebar({
         </div>
 
         <div className="flex flex-1 flex-col gap-2">
-          <label className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Notes
-          </label>
-          <textarea
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="Add supporting explanation, evidence, or reasoning..."
-            className="flex-1 min-h-40 resize-none rounded-lg border border-black/[.08] px-3 py-2 text-sm dark:border-white/[.145]"
-          />
+          <div className="flex items-center justify-between gap-3">
+            <label className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Notes
+            </label>
+            {!editing && (
+              <button
+                onClick={() => setEditing(true)}
+                className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+          {editing ? (
+            <textarea
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="Add supporting explanation, evidence, or reasoning..."
+              autoFocus={!!support}
+              className="flex-1 min-h-40 resize-none rounded-lg border border-black/[.08] px-3 py-2 text-sm dark:border-white/[.145]"
+            />
+          ) : (
+            <p className="whitespace-pre-wrap text-sm">
+              {value || <span className="text-zinc-500">No notes yet.</span>}
+            </p>
+          )}
         </div>
 
         <button
           onClick={save}
-          disabled={isPending}
+          disabled={isPending || !editing}
           className="self-start rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-40 dark:hover:bg-[#ccc]"
         >
           Save
