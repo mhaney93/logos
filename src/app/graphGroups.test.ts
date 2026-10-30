@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { collapseCategories, expandedView, groupNodeId, homeView, isExpandedView, visibleChains } from "./graphGroups";
+import { argumentTree, collapseCategories, expandedView, groupNodeId, homeView, isExpandedView, visibleChains } from "./graphGroups";
 
 const allPaths = ["Ethics", "Ethics/Virtues", "Logic"];
 const premisesOf = new Map([["c1", ["p1", "p2"]]]);
@@ -56,4 +56,17 @@ test("opening a category doesn't link its clauses to another category until thei
     `${groupNodeId("Politics")}->${groupNodeId("Logic")}`,
     `x->${groupNodeId("Logic")}`,
   ]);
+});
+
+test("argumentTree keeps every premise above the conclusion and nothing below it", () => {
+  const clause = (id: string) => ({ id, text: id, support: null, category: null });
+  const clauses = ["a", "b", "c", "d", "e", "f"].map(clause);
+  const args = [
+    { id: "top", conclusionId: "f", premises: [{ clauseId: "e" }, { clauseId: "a" }] },
+    { id: "mid", conclusionId: "e", premises: [{ clauseId: "c" }, { clauseId: "d" }] },
+    { id: "low", conclusionId: "c", premises: [{ clauseId: "a" }, { clauseId: "b" }] },
+  ];
+  const tree = argumentTree("e", clauses, args);
+  assert.deepEqual(tree.clauses.map((c) => c.id), ["a", "b", "c", "d", "e"]);
+  assert.deepEqual(tree.arguments.map((a) => a.id), ["mid", "low"]);
 });

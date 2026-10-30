@@ -9,26 +9,36 @@ export function ClauseSupportSidebar({
   text,
   support,
   category,
+  hidden = false,
   onClose,
+  onShowArgument,
 }: {
   id: string;
   text: string;
   support: string | null;
   category: string | null;
+  hidden?: boolean;
   onClose: () => void;
+  onShowArgument?: () => void;
 }) {
   const [value, setValue] = useState(support ?? "");
   // Notes show as plain text until Edit: dictionary extensions ignore words inside editable fields.
   const [editing, setEditing] = useState(false);
+  const [savedSupport, setSavedSupport] = useState(support);
+  if (support !== savedSupport) {
+    setSavedSupport(support);
+    if (value === (savedSupport ?? "")) setValue(support ?? "");
+  }
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
+    if (hidden) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [hidden, onClose]);
 
   function save() {
     const password = getActionPassword();
@@ -43,7 +53,7 @@ export function ClauseSupportSidebar({
   }
 
   return (
-    <>
+    <div hidden={hidden}>
       <div
         onClick={onClose}
         className="fixed inset-0 z-40 bg-black/20 dark:bg-black/50"
@@ -93,14 +103,24 @@ export function ClauseSupportSidebar({
           )}
         </div>
 
-        <button
-          onClick={save}
-          disabled={isPending || !editing}
-          className="self-start rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-40 dark:hover:bg-[#ccc]"
-        >
-          Save
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={save}
+            disabled={isPending || !editing}
+            className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-40 dark:hover:bg-[#ccc]"
+          >
+            Save
+          </button>
+          {onShowArgument && (
+            <button
+              onClick={onShowArgument}
+              className="rounded-full border border-black/[.08] px-4 py-2 text-sm font-medium transition-colors hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-white/[.06]"
+            >
+              Show Argument
+            </button>
+          )}
+        </div>
       </aside>
-    </>
+    </div>
   );
 }
