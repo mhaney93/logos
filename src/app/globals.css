@@ -34,6 +34,26 @@ body {
   pointer-events: auto !important;
 }
 
+/* React Flow paints its control buttons a fixed near-white while the icons
+   inherit the page text color, so once the page goes dark (OS dark mode, which
+   also makes Dark Reader leave the page alone) the icons vanish. Use the page
+   tokens directly on the properties (not via React Flow's variables) so Dark
+   Reader, which can't follow variable-to-variable chains, still adapts them. */
+.react-flow .react-flow__controls-button {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+@media (prefers-color-scheme: dark) {
+  .react-flow .react-flow__controls-button {
+    border-bottom-color: #333333;
+  }
+
+  .react-flow .react-flow__controls-button:hover {
+    background: #262626;
+  }
+}
+
 /* The hand cursor, with the hovered line highlighting, signals map lines are clickable. */
 .react-flow .react-flow__edge {
   cursor: pointer;
