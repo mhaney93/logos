@@ -18,22 +18,22 @@ The result is a DAG (directed acyclic graph) of logical dependencies across the 
 
 Planned and built features (check the code before assuming one exists):
 
-- **Argument builder** — drag clauses into premise slots or type new ones with AI suggestions
+- **Argument builder** (planned) — compose clauses into premise slots; today clauses and arguments are written through the server actions in `src/lib/actions/`
 - **AI similarity detection** (planned) — real-time semantic search as users type, surfacing existing clauses to prevent duplicates. Will use pgvector + embeddings.
-- **Reputation system** — citation count is your reputation score. Non-transferable, identity-bound. Displayed on profiles.
-- **Weighted voting** — thumbs up/down on clauses and arguments, weighted by the voter's citation count
-- **Governance & feature gating** — certain features require a citation threshold
-- **Private DM workspaces** — private debates between 2+ users using the same argument tools. Nothing hits the public graph unless participants choose to promote it.
+- **Reputation system** (planned) — citation count is your reputation score. Non-transferable, identity-bound. Displayed on profiles.
+- **Weighted voting** (planned) — thumbs up/down on clauses and arguments, weighted by the voter's citation count
+- **Governance & feature gating** (planned) — certain features require a citation threshold
+- **Private DM workspaces** (planned) — private debates between 2+ users using the same argument tools. Nothing hits the public graph unless participants choose to promote it.
 
 ## Architecture Decisions
 
-- **Clause uniqueness is enforced socially + by AI** — not technically. The AI suggests existing clauses; users decide. The AI deduplication layer is the main guard against fragmentation.
+- **Clause uniqueness is enforced socially, not technically** — search surfaces existing clauses before you add one; an AI dedup layer is planned.
 - **Arguments are composable recursively** — an Argument can be used as a premise in another Argument. This is load-bearing for the platform's value.
 
 ## Tech Stack
 
 - **Framework** — Next.js (App Router)
-- **Database** — Postgres with pgvector for semantic similarity search
+- **Database** — Postgres (Neon) via Prisma 7; pgvector is enabled for planned similarity search
 - **Auth** — none yet: a single local user (clerkId "solo-user") and an ACTION_PASSWORD gate in `src/lib/auth.ts`; Clerk is planned
 - **AI** — not built; `Clause.embedding` (pgvector) exists in the schema but nothing fills it. Claude embeddings + similarity suggestions are planned
 - **Hosting** — Vercel
